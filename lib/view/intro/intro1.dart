@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/utils/textstyle.dart';
-import 'package:hire_driver/auth/login/login.dart';
+import 'package:hire_driver/auth/login/screen/login.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class IntroPagerScreen extends StatefulWidget {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
+import 'package:hire_driver/view/car%20rental/screens/mycarlisting.dart';
 
 import 'package:hire_driver/view/forms/screen/carlistingform.dart';
 import 'package:hire_driver/view/host/bottombar.dart';
@@ -25,27 +26,27 @@ class HostHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       bottomNavigationBar: const HostBottomNavBar(currentIndex: 0),
       body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
-            const Text(
+            Text(
               'Rental Dashboard',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
+                color: AppColors.text1(context),
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Manage your rental cars and requests',
               style: TextStyle(
                 fontSize: 13,
-                color: AppColors.textSecondary,
+                color: AppColors.text2(context),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -61,8 +62,11 @@ class HostHomeScreen extends StatelessWidget {
               ),
               child: Row(
                 children: const [
-                  Icon(Icons.directions_car_rounded,
-                      color: Colors.white, size: 42),
+                  Icon(
+                    Icons.directions_car_rounded,
+                    color: Colors.white,
+                    size: 42,
+                  ),
                   SizedBox(width: 14),
                   Expanded(
                     child: Text(
@@ -121,7 +125,12 @@ class HostHomeScreen extends StatelessWidget {
                 ),
               ),
               onPressed: () {
-                
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ListMyCarFlowScreen(),
+                  ),
+                );
               },
               icon: const Icon(Icons.add_rounded),
               label: const Text(
@@ -132,12 +141,12 @@ class HostHomeScreen extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            const Text(
+            Text(
               'Incoming Rental Requests',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
+                color: AppColors.text1(context),
               ),
             ),
             const SizedBox(height: 12),
@@ -187,17 +196,19 @@ class _RentalRequestCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.card(context),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.secondary),
+          border: Border.all(
+            color: AppColors.secondary.withOpacity(0.45),
+          ),
         ),
         child: Row(
           children: [
             Container(
               height: 48,
               width: 48,
-              decoration: const BoxDecoration(
-                color: AppColors.light,
+              decoration: BoxDecoration(
+                color: AppColors.softBg(context),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -212,17 +223,17 @@ class _RentalRequestCard extends StatelessWidget {
                 children: [
                   Text(
                     renterName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: AppColors.text1(context),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '$carName • $dates',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: AppColors.textSecondary,
+                      color: AppColors.text2(context),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -259,9 +270,11 @@ class _HostStatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(
+          color: AppColors.secondary.withOpacity(0.45),
+        ),
       ),
       child: Column(
         children: [
@@ -269,17 +282,17 @@ class _HostStatCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
             ),
           ),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: AppColors.text2(context),
             ),
           ),
         ],

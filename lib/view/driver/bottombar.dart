@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/driver/home.dart';
-import 'package:hire_driver/view/driver/home.dart';
-import 'package:hire_driver/view/rider/profile.dart'; // ✅ UPDATED
-
+import 'package:hire_driver/view/driver/profile.dart';
 
 class DriverBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -48,7 +46,7 @@ class DriverBottomNavBar extends StatelessWidget {
         screen = const DriverReviewsScreen();
         break;
       case 3:
-        screen = const DriverProfileScreen(); // ✅ UPDATED
+        screen = const DriverProfileScreen();
         break;
       default:
         screen = const DriverHomeScreen1();
@@ -62,18 +60,22 @@ class DriverBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       height: 78,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: const BorderRadius.vertical(
           top: Radius.circular(24),
         ),
         boxShadow: [
           BoxShadow(
-            color: Color(0x12000000),
+            color: isDark
+                ? Colors.black.withOpacity(0.40)
+                : const Color(0x12000000),
             blurRadius: 20,
-            offset: Offset(0, -4),
+            offset: const Offset(0, -4),
           ),
         ],
       ),
@@ -118,13 +120,13 @@ class _DriverReusableNavItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: active ? AppColors.primary : const Color(0xFF98A2B3),
+              color: active ? AppColors.primary : AppColors.text2(context),
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: active ? AppColors.primary : const Color(0xFF98A2B3),
+                color: active ? AppColors.primary : AppColors.text2(context),
                 fontSize: 12,
                 fontWeight: active ? FontWeight.w700 : FontWeight.w500,
               ),

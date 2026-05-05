@@ -2,27 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/host/bottombar.dart';
 
-
 class HostEarningsScreen extends StatelessWidget {
   const HostEarningsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       bottomNavigationBar: const HostBottomNavBar(currentIndex: 2),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.bg(context),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Host Earnings',
+        title: Text(
+          'Rental Earnings',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.text1(context),
             fontWeight: FontWeight.w800,
           ),
         ),
+        iconTheme: IconThemeData(
+          color: AppColors.text1(context),
+        ),
       ),
       body: ListView(
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           Container(
@@ -32,6 +36,13 @@ class HostEarningsScreen extends StatelessWidget {
                 colors: [AppColors.primary, AppColors.darkPrimary],
               ),
               borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.22),
+                  blurRadius: 22,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -63,13 +74,13 @@ class HostEarningsScreen extends StatelessWidget {
             subtitle: '25 Apr - 28 Apr',
             amount: 'Rs. 18,000',
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           const _EarningHistoryItem(
             title: 'Honda Civic Rental',
             subtitle: '10 Apr - 12 Apr',
             amount: 'Rs. 16,000',
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           const _EarningHistoryItem(
             title: 'Suzuki Alto Rental',
             subtitle: '2 Apr - 4 Apr',
@@ -97,13 +108,33 @@ class _EarningHistoryItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(
+          color: AppColors.secondary.withOpacity(0.45),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(Icons.payments_rounded, color: AppColors.primary),
+          Container(
+            height: 42,
+            width: 42,
+            decoration: BoxDecoration(
+              color: AppColors.softBg(context),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.payments_rounded,
+              color: AppColors.primary,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -111,16 +142,17 @@ class _EarningHistoryItem extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
+                    color: AppColors.text1(context),
                   ),
                 ),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: AppColors.text2(context),
                   ),
                 ),
               ],

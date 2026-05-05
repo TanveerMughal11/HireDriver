@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
+import 'package:hire_driver/view/car%20rental/screens/mycarlisting.dart';
 import 'package:hire_driver/view/host/earning.dart';
 import 'package:hire_driver/view/host/home.dart';
 import 'package:hire_driver/view/host/listing.dart';
 import 'package:hire_driver/view/host/profile.dart';
-
 
 class HostBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -24,7 +24,7 @@ class HostBottomNavBar extends StatelessWidget {
         screen = const HostHomeScreen();
         break;
       case 1:
-        screen = const HostListingsScreen();
+        screen = const MyCarListingsScreen();
         break;
       case 2:
         screen = const HostEarningsScreen();
@@ -51,16 +51,20 @@ class HostBottomNavBar extends StatelessWidget {
       _HostNavItem(Icons.person_rounded, 'Profile'),
     ];
 
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       height: 78,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x12000000),
+            color: isDark
+                ? Colors.black.withOpacity(0.4)
+                : const Color(0x12000000),
             blurRadius: 20,
-            offset: Offset(0, -4),
+            offset: const Offset(0, -4),
           ),
         ],
       ),
@@ -68,37 +72,41 @@ class HostBottomNavBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(
           items.length,
-          (index) => InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => _onItemTapped(context, index),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    items[index].icon,
-                    color: currentIndex == index
-                        ? AppColors.primary
-                        : const Color(0xFF98A2B3),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    items[index].label,
-                    style: TextStyle(
-                      color: currentIndex == index
+          (index) {
+            final bool isActive = currentIndex == index;
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => _onItemTapped(context, index),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      items[index].icon,
+                      color: isActive
                           ? AppColors.primary
-                          : const Color(0xFF98A2B3),
-                      fontSize: 12,
-                      fontWeight: currentIndex == index
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                          : AppColors.text2(context),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Text(
+                      items[index].label,
+                      style: TextStyle(
+                        color: isActive
+                            ? AppColors.primary
+                            : AppColors.text2(context),
+                        fontSize: 12,
+                        fontWeight:
+                            isActive ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

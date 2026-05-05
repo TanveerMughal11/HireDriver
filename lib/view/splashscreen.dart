@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/textstyle.dart';
 import 'package:hire_driver/view/home.dart';
 import 'package:hire_driver/view/intro/intro1.dart';
-import 'package:hire_driver/auth/login/login.dart';
+import 'package:hire_driver/auth/login/screen/login.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {

@@ -16,7 +16,7 @@ import 'package:hire_driver/view/driver/home.dart';
 import 'package:hire_driver/view/editprofile.dart';
 import 'package:hire_driver/view/help_and_support.dart';
 import 'package:hire_driver/view/host/home.dart';
-import 'package:hire_driver/auth/login/login.dart';
+import 'package:hire_driver/auth/login/screen/login.dart';
 import 'package:hire_driver/view/settings.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -442,19 +442,7 @@ class _ProfileActionsCard extends StatelessWidget {
                   );
                 },
               ),
-              const _TileDivider(),
-              _MenuTile(
-                icon: Icons.badge_outlined,
-                title: 'My Car Listing',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const MyCarListingsScreen(),
-                    ),
-                  );
-                },
-              ),
+     
               const _TileDivider(),
               _MenuTile(
                 icon: Icons.key_rounded,

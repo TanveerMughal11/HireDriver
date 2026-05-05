@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'package:hire_driver/utils/app_colors.dart';
+import 'package:hire_driver/view/driver/bottombar.dart';
 import 'package:hire_driver/view/rider/bottombar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -73,7 +74,7 @@ class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       bottomNavigationBar: const DriverBottomNavBar(
         currentIndex: 0,
       ),
@@ -110,20 +111,20 @@ class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
                   border: Border.all(color: Colors.orange.withOpacity(0.25)),
                 ),
                 child: Row(
-                  children: const [
-                    Icon(
+                  children: [
+                    const Icon(
                       Icons.notifications_active_rounded,
                       color: Colors.orange,
                       size: 20,
                     ),
-                    SizedBox(width: 10),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         '2 new hire driver requests waiting for response',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                          color: AppColors.text1(context),
                         ),
                       ),
                     ),
@@ -131,33 +132,30 @@ class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
                 ),
               ),
               const SizedBox(height: 16),
-            const _SectionTitle(
-  title: 'Incoming Requests',
-  subtitle: 'Accept or review hire driver requests',
-),
-const SizedBox(height: 12),
-
-_IncomingRequestCard(
-  passengerName: 'Muhammad Fahad',
-  tripType: 'Hire Driver • One-Way Trip',
-  pickup: 'DHA Phase 5, Lahore',
-  dropoff: 'Gulberg Main Market, Lahore',
-  fare: 'PKR 180',
-  distance: '12.4 km • 45 min',
-  onTap: _openRequestDetail,
-),
-
-const SizedBox(height: 12),
-
-_IncomingRequestCard(
-  passengerName: 'Tanveer Mughal',
-  tripType: 'Hire Driver • Monthly Hire',
-  pickup: 'Johar Town, Lahore',
-  dropoff: 'Same pickup area',
-  fare: 'PKR 13,500',
-  distance: 'Monthly • 8 hrs/day',
-  onTap: _openRequestDetail,
-),
+              const _SectionTitle(
+                title: 'Incoming Requests',
+                subtitle: 'Accept or review hire driver requests',
+              ),
+              const SizedBox(height: 12),
+              _IncomingRequestCard(
+                passengerName: 'Muhammad Fahad',
+                tripType: 'Hire Driver • One-Way Trip',
+                pickup: 'DHA Phase 5, Lahore',
+                dropoff: 'Gulberg Main Market, Lahore',
+                fare: 'PKR 180',
+                distance: '12.4 km • 45 min',
+                onTap: _openRequestDetail,
+              ),
+              const SizedBox(height: 12),
+              _IncomingRequestCard(
+                passengerName: 'Tanveer Mughal',
+                tripType: 'Hire Driver • Monthly Hire',
+                pickup: 'Johar Town, Lahore',
+                dropoff: 'Same pickup area',
+                fare: 'PKR 13,500',
+                distance: 'Monthly • 8 hrs/day',
+                onTap: _openRequestDetail,
+              ),
               const SizedBox(height: 22),
               const _SectionTitle(
                 title: 'Quick Actions',
@@ -196,21 +194,21 @@ class _DriverTopHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Driver Dashboard',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF8E97A8),
+                  color: AppColors.text2(context),
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 userName,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+                  color: AppColors.text1(context),
                 ),
               ),
             ],
@@ -220,16 +218,16 @@ class _DriverTopHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.card(context),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.secondary),
+            border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 isOnline ? Icons.radio_button_on : Icons.radio_button_off,
-                color: isOnline ? Colors.green : Colors.grey,
+                color: isOnline ? Colors.green : AppColors.text2(context),
                 size: 18,
               ),
               const SizedBox(width: 6),
@@ -238,7 +236,7 @@ class _DriverTopHeader extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: isOnline ? Colors.green : Colors.grey,
+                  color: isOnline ? Colors.green : AppColors.text2(context),
                 ),
               ),
               const SizedBox(width: 8),
@@ -264,9 +262,9 @@ class _DriverMapCard extends StatelessWidget {
       height: 220,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppColors.light,
+        color: AppColors.softBg(context),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Stack(
         children: [
@@ -274,7 +272,13 @@ class _DriverMapCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: CustomPaint(
-                painter: _DriverMapPainter(),
+                painter: _DriverMapPainter(
+                  backgroundColor: AppColors.softBg(context),
+                  roadColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white.withOpacity(0.14)
+                      : Colors.white.withOpacity(0.95),
+                  laneColor: AppColors.secondary.withOpacity(0.35),
+                ),
               ),
             ),
           ),
@@ -309,18 +313,28 @@ class _DriverMapCard extends StatelessWidget {
 }
 
 class _DriverMapPainter extends CustomPainter {
+  final Color backgroundColor;
+  final Color roadColor;
+  final Color laneColor;
+
+  _DriverMapPainter({
+    required this.backgroundColor,
+    required this.roadColor,
+    required this.laneColor,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = AppColors.light;
+    final bg = Paint()..color = backgroundColor;
     canvas.drawRect(Offset.zero & size, bg);
 
     final road = Paint()
-      ..color = Colors.white.withOpacity(0.95)
+      ..color = roadColor
       ..strokeWidth = 14
       ..strokeCap = StrokeCap.round;
 
     final lane = Paint()
-      ..color = AppColors.secondary.withOpacity(0.45)
+      ..color = laneColor
       ..strokeWidth = 1;
 
     for (double x = 0; x < size.width; x += 26) {
@@ -354,7 +368,11 @@ class _DriverMapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DriverMapPainter oldDelegate) {
+    return oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.roadColor != roadColor ||
+        oldDelegate.laneColor != laneColor;
+  }
 }
 
 class _MapInfoChip extends StatelessWidget {
@@ -371,7 +389,7 @@ class _MapInfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(50),
         boxShadow: [
           BoxShadow(
@@ -387,10 +405,10 @@ class _MapInfoChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
             ),
           ),
         ],
@@ -518,9 +536,9 @@ class _MiniStatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Column(
         children: [
@@ -528,18 +546,18 @@ class _MiniStatCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
             ),
           ),
           const SizedBox(height: 3),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppColors.textSecondary,
+              color: AppColors.text2(context),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -576,8 +594,9 @@ class _IncomingRequestCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.card(context),
           borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
           boxShadow: [
             BoxShadow(
               color: AppColors.primary.withOpacity(0.05),
@@ -593,8 +612,8 @@ class _IncomingRequestCard extends StatelessWidget {
                 Container(
                   height: 48,
                   width: 48,
-                  decoration: const BoxDecoration(
-                    color: AppColors.light,
+                  decoration: BoxDecoration(
+                    color: AppColors.softBg(context),
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
@@ -614,18 +633,18 @@ class _IncomingRequestCard extends StatelessWidget {
                     children: [
                       Text(
                         passengerName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
+                          color: AppColors.text1(context),
                         ),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         tripType,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.textSecondary,
+                          color: AppColors.text2(context),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -636,7 +655,7 @@ class _IncomingRequestCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.light,
+                    color: AppColors.softBg(context),
                     borderRadius: BorderRadius.circular(50),
                   ),
                   child: Text(
@@ -671,7 +690,9 @@ class _IncomingRequestCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.secondary),
+                      side: BorderSide(
+                        color: AppColors.secondary.withOpacity(0.55),
+                      ),
                       foregroundColor: Colors.red,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -731,9 +752,9 @@ class _TripRow extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -805,9 +826,9 @@ class _QuickActionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.card(context),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.secondary),
+          border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
         ),
         child: Column(
           children: [
@@ -816,10 +837,10 @@ class _QuickActionCard extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                color: AppColors.text1(context),
               ),
             ),
           ],
@@ -845,19 +866,19 @@ class _SectionTitle extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
+            color: AppColors.text1(context),
           ),
         ),
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: AppColors.textSecondary,
+            color: AppColors.text2(context),
           ),
         ),
       ],
@@ -913,37 +934,31 @@ class _MapPinBubble extends StatelessWidget {
   }
 }
 
-
-
 class DriverRequestDetailScreen extends StatelessWidget {
   const DriverRequestDetailScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       body: SafeArea(
         child: Column(
           children: [
             _header(context),
-
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
                 child: Column(
                   children: [
-                    _passengerCard(),
+                    _passengerCard(context),
                     const SizedBox(height: 16),
-
-                    _tripDetailCard(),
+                    _tripDetailCard(context),
                     const SizedBox(height: 16),
-
                     _fareCard(),
                   ],
                 ),
               ),
             ),
-
             _bottomButtons(context),
           ],
         ),
@@ -951,7 +966,6 @@ class DriverRequestDetailScreen extends StatelessWidget {
     );
   }
 
-  /// HEADER
   Widget _header(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
@@ -959,15 +973,18 @@ class DriverRequestDetailScreen extends StatelessWidget {
         children: [
           InkWell(
             onTap: () => Navigator.pop(context),
-            child: const Icon(Icons.arrow_back_ios_new_rounded),
+            child: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: AppColors.text1(context),
+            ),
           ),
           const SizedBox(width: 12),
-          const Text(
+          Text(
             'Request Details',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
             ),
           ),
         ],
@@ -975,14 +992,13 @@ class DriverRequestDetailScreen extends StatelessWidget {
     );
   }
 
-  /// PASSENGER
-  Widget _passengerCard() {
+  Widget _passengerCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Row(
         children: [
@@ -998,7 +1014,7 @@ class DriverRequestDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1007,13 +1023,14 @@ class DriverRequestDetailScreen extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 16,
+                    color: AppColors.text1(context),
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   'Hire Driver • One Way',
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: AppColors.text2(context),
                     fontSize: 13,
                   ),
                 ),
@@ -1021,10 +1038,13 @@ class DriverRequestDetailScreen extends StatelessWidget {
             ),
           ),
           Row(
-            children: const [
-              Icon(Icons.star, color: Colors.orange, size: 18),
-              SizedBox(width: 4),
-              Text("4.8"),
+            children: [
+              const Icon(Icons.star, color: Colors.orange, size: 18),
+              const SizedBox(width: 4),
+              Text(
+                "4.8",
+                style: TextStyle(color: AppColors.text1(context)),
+              ),
             ],
           )
         ],
@@ -1032,38 +1052,37 @@ class DriverRequestDetailScreen extends StatelessWidget {
     );
   }
 
-  /// TRIP DETAILS
-  Widget _tripDetailCard() {
+  Widget _tripDetailCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Column(
         children: [
-          _row(Icons.location_on, "Pickup",
-              "DHA Phase 5, Lahore"),
+          _row(context, Icons.location_on, "Pickup", "DHA Phase 5, Lahore"),
           const SizedBox(height: 10),
-          _row(Icons.flag, "Dropoff",
-              "Gulberg Main Market, Lahore"),
-          const Divider(height: 20),
-          _row(Icons.calendar_today, "Date", "12 May 2026"),
+          _row(context, Icons.flag, "Dropoff", "Gulberg Main Market, Lahore"),
+          Divider(height: 20, color: AppColors.secondary.withOpacity(0.45)),
+          _row(context, Icons.calendar_today, "Date", "12 May 2026"),
           const SizedBox(height: 10),
-          _row(Icons.access_time, "Time", "10:30 AM"),
+          _row(context, Icons.access_time, "Time", "10:30 AM"),
           const SizedBox(height: 10),
-          _row(Icons.directions_car, "Vehicle",
-              "Toyota Corolla • LEH-1234"),
+          _row(
+            context,
+            Icons.directions_car,
+            "Vehicle",
+            "Toyota Corolla • LEH-1234",
+          ),
           const SizedBox(height: 10),
-          _row(Icons.route, "Distance",
-              "12.4 km • 45 min"),
+          _row(context, Icons.route, "Distance", "12.4 km • 45 min"),
         ],
       ),
     );
   }
 
-  /// FARE
   Widget _fareCard() {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1093,9 +1112,9 @@ class DriverRequestDetailScreen extends StatelessWidget {
     );
   }
 
-  /// BUTTONS
   Widget _bottomButtons(BuildContext context) {
     return Container(
+      color: AppColors.bg(context),
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
       child: Row(
         children: [
@@ -1108,40 +1127,42 @@ class DriverRequestDetailScreen extends StatelessWidget {
               },
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
+                foregroundColor: Colors.red,
+                side: BorderSide(color: AppColors.secondary.withOpacity(0.55)),
               ),
               child: const Text("Decline"),
             ),
           ),
           const SizedBox(width: 12),
-     Expanded(
-  child: ElevatedButton(
-    onPressed: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const DriverNavigationScreen(),
-        ),
-      );
-    },
-    style: ElevatedButton.styleFrom(
-      backgroundColor: AppColors.primary,
-      minimumSize: const Size.fromHeight(54),
-    ),
-    child: const Text(
-      "Accept",
-      style: TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.w800,
-      ),
-    ),
-  ),
-),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const DriverNavigationScreen(),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                minimumSize: const Size.fromHeight(54),
+              ),
+              child: const Text(
+                "Accept",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _row(IconData icon, String title, String value) {
+  Widget _row(BuildContext context, IconData icon, String title, String value) {
     return Row(
       children: [
         Icon(icon, size: 18, color: AppColors.primary),
@@ -1149,7 +1170,10 @@ class DriverRequestDetailScreen extends StatelessWidget {
         Expanded(
           child: Text(
             "$title: $value",
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppColors.text1(context),
+            ),
           ),
         ),
       ],
@@ -1172,17 +1196,19 @@ class DriverNavigationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.bg(context),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Driver Navigation',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.text1(context),
             fontWeight: FontWeight.w800,
           ),
         ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
       body: Column(
         children: [
@@ -1190,9 +1216,9 @@ class DriverNavigationScreen extends StatelessWidget {
             child: Container(
               margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
               decoration: BoxDecoration(
-                color: AppColors.light,
+                color: AppColors.softBg(context),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.secondary),
+                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               ),
               child: Stack(
                 children: [
@@ -1200,7 +1226,14 @@ class DriverNavigationScreen extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: CustomPaint(
-                        painter: _DriverMapPainter(),
+                        painter: _DriverMapPainter(
+                          backgroundColor: AppColors.softBg(context),
+                          roadColor:
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white.withOpacity(0.14)
+                                  : Colors.white.withOpacity(0.95),
+                          laneColor: AppColors.secondary.withOpacity(0.35),
+                        ),
                       ),
                     ),
                   ),
@@ -1236,8 +1269,9 @@ class DriverNavigationScreen extends StatelessWidget {
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.card(context),
               borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withOpacity(0.05),
@@ -1303,17 +1337,19 @@ class DriverRideActiveScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.bg(context),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Ride In Progress',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.text1(context),
             fontWeight: FontWeight.w800,
           ),
         ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
       body: Column(
         children: [
@@ -1321,9 +1357,9 @@ class DriverRideActiveScreen extends StatelessWidget {
             child: Container(
               margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
               decoration: BoxDecoration(
-                color: AppColors.light,
+                color: AppColors.softBg(context),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.secondary),
+                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               ),
               child: Stack(
                 children: [
@@ -1331,7 +1367,14 @@ class DriverRideActiveScreen extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: CustomPaint(
-                        painter: _DriverMapPainter(),
+                        painter: _DriverMapPainter(
+                          backgroundColor: AppColors.softBg(context),
+                          roadColor:
+                              Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white.withOpacity(0.14)
+                                  : Colors.white.withOpacity(0.95),
+                          laneColor: AppColors.secondary.withOpacity(0.35),
+                        ),
                       ),
                     ),
                   ),
@@ -1351,8 +1394,9 @@ class DriverRideActiveScreen extends StatelessWidget {
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.card(context),
               borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withOpacity(0.05),
@@ -1427,17 +1471,19 @@ class DriverCompleteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.bg(context),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Trip Completed',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.text1(context),
             fontWeight: FontWeight.w800,
           ),
         ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
       body: Center(
         child: Padding(
@@ -1446,8 +1492,9 @@ class DriverCompleteScreen extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppColors.card(context),
               borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withOpacity(0.06),
@@ -1473,22 +1520,22 @@ class DriverCompleteScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
-                const Text(
+                Text(
                   "Trip Completed",
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
+                    color: AppColors.text1(context),
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   "Passenger reached destination successfully.",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.5,
-                    color: AppColors.textSecondary,
+                    color: AppColors.text2(context),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1553,20 +1600,22 @@ class DriverEarningsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       bottomNavigationBar: const DriverBottomNavBar(
         currentIndex: 1,
       ),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.bg(context),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Driver Earnings',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.text1(context),
             fontWeight: FontWeight.w800,
           ),
         ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
       body: SafeArea(
         child: ListView(
@@ -1575,7 +1624,6 @@ class DriverEarningsScreen extends StatelessWidget {
           children: [
             const _TodayEarningsCard(),
             const SizedBox(height: 16),
-
             Row(
               children: const [
                 Expanded(
@@ -1595,9 +1643,7 @@ class DriverEarningsScreen extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -1610,26 +1656,24 @@ class DriverEarningsScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.card(context),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.secondary),
+                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Earnings Overview',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: AppColors.text1(context),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1649,9 +1693,7 @@ class DriverEarningsScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -1671,9 +1713,7 @@ class DriverEarningsScreen extends StatelessWidget {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
             const _HistoryItem(
               title: 'Johar Town → Gulberg',
               subtitle: 'Today • Ride completed',
@@ -1722,9 +1762,9 @@ class _BarItem extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
-            color: AppColors.textSecondary,
+            color: AppColors.text2(context),
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1747,14 +1787,14 @@ class _PeriodChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: selected ? AppColors.primary : Colors.white,
+        color: selected ? AppColors.primary : AppColors.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: selected ? Colors.white : AppColors.textPrimary,
+          color: selected ? Colors.white : AppColors.text1(context),
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
@@ -1769,20 +1809,22 @@ class DriverReviewsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       bottomNavigationBar: const DriverBottomNavBar(
         currentIndex: 2,
       ),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.bg(context),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Driver Reviews',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.text1(context),
             fontWeight: FontWeight.w800,
           ),
         ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -1796,7 +1838,6 @@ class DriverReviewsScreen extends StatelessWidget {
               label: 'Average Rating',
             ),
             const SizedBox(height: 16),
-
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -1807,44 +1848,40 @@ class DriverReviewsScreen extends StatelessWidget {
                 _ReviewFilterChip(label: '3★+', selected: false),
               ],
             ),
-
             const SizedBox(height: 16),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.light,
+                color: AppColors.softBg(context),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.secondary),
+                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   Text(
                     'Tips from Top Rated Drivers',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
+                      color: AppColors.text1(context),
                     ),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   Text(
                     '• Arrive early\n• Keep communication polite\n• Confirm pickup clearly\n• Drive smoothly and safely',
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.5,
-                      color: AppColors.textSecondary,
+                      color: AppColors.text2(context),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             const _ReviewCard(
               name: 'Ali Raza',
               review: 'Very polite and reached on time. Smooth ride.',
@@ -1880,14 +1917,14 @@ class _ReviewFilterChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: selected ? AppColors.primary : Colors.white,
+        color: selected ? AppColors.primary : AppColors.card(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: selected ? Colors.white : AppColors.textPrimary,
+          color: selected ? Colors.white : AppColors.text1(context),
           fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
@@ -1911,8 +1948,9 @@ class _DetailCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withOpacity(0.05),
@@ -1926,10 +1964,10 @@ class _DetailCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
             ),
           ),
           const SizedBox(height: 14),
@@ -1960,19 +1998,19 @@ class _DetailRow extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
             ),
           ),
         ),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: AppColors.textSecondary,
+            color: AppColors.text2(context),
           ),
         ),
       ],
@@ -1994,9 +2032,9 @@ class _ActionMiniButton extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.light,
+        color: AppColors.softBg(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Column(
         children: [
@@ -2004,8 +2042,8 @@ class _ActionMiniButton extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             title,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: AppColors.text1(context),
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
@@ -2032,9 +2070,9 @@ class _HistoryItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Row(
         children: [
@@ -2042,7 +2080,7 @@ class _HistoryItem extends StatelessWidget {
             height: 42,
             width: 42,
             decoration: BoxDecoration(
-              color: AppColors.light,
+              color: AppColors.softBg(context),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -2057,8 +2095,8 @@ class _HistoryItem extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
+                  style: TextStyle(
+                    color: AppColors.text1(context),
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
@@ -2066,8 +2104,8 @@ class _HistoryItem extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: AppColors.textSecondary,
+                  style: TextStyle(
+                    color: AppColors.text2(context),
                     fontWeight: FontWeight.w500,
                     fontSize: 12,
                   ),
@@ -2103,17 +2141,17 @@ class _ReviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             name,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: AppColors.text1(context),
               fontWeight: FontWeight.w800,
               fontSize: 14,
             ),
@@ -2131,8 +2169,8 @@ class _ReviewCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             review,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
+            style: TextStyle(
+              color: AppColors.text2(context),
               fontWeight: FontWeight.w500,
               fontSize: 13,
               height: 1.5,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/car%20rental/provider/my_car_listing.dart';
 import 'package:provider/provider.dart';
+import 'package:hire_driver/view/host/bottombar.dart'; // ✅ ADDED
 
 class MyCarListingsScreen extends StatelessWidget {
   const MyCarListingsScreen({super.key});
@@ -32,6 +33,10 @@ class _MyCarListingsBody extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: AppColors.bg(context),
+
+          // ✅ ADDED BOTTOM BAR
+          bottomNavigationBar: const HostBottomNavBar(currentIndex: 1),
+
           appBar: AppBar(
             backgroundColor: AppColors.bg(context),
             elevation: 0,
@@ -60,7 +65,7 @@ class _MyCarListingsBody extends StatelessWidget {
                   : RefreshIndicator(
                       onRefresh: provider.loadListings,
                       child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), // ✅ slight padding fix for bottom bar
                         itemCount: provider.listings.length,
                         itemBuilder: (context, index) {
                           final item = provider.listings[index];

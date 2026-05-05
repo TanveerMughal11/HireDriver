@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
-import 'package:hire_driver/view/rider/bottombar.dart';
+import 'package:hire_driver/view/driver/bottombar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DriverProfileScreen extends StatefulWidget {
@@ -38,28 +38,30 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-return Scaffold(
-  backgroundColor: AppColors.background,
-
-  bottomNavigationBar: const DriverBottomNavBar( // ✅ ADD THIS
-    currentIndex: 3,
-  ),
-
-  appBar: AppBar(
-    backgroundColor: AppColors.background,
-    elevation: 0,
-    title: const Text(
-      "Driver Profile",
-      style: TextStyle(
-        color: AppColors.textPrimary,
-        fontWeight: FontWeight.w800,
+    return Scaffold(
+      backgroundColor: AppColors.bg(context),
+      bottomNavigationBar: const DriverBottomNavBar(
+        currentIndex: 3,
       ),
-    ),
-  ),
+      appBar: AppBar(
+        backgroundColor: AppColors.bg(context),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
+          "Driver Profile",
+          style: TextStyle(
+            color: AppColors.text1(context),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        iconTheme: IconThemeData(
+          color: AppColors.text1(context),
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
           children: [
             Container(
               padding: const EdgeInsets.all(18),
@@ -68,6 +70,13 @@ return Scaffold(
                   colors: [AppColors.primary, AppColors.darkPrimary],
                 ),
                 borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.22),
+                    blurRadius: 22,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
               ),
               child: Row(
                 children: [
@@ -130,9 +139,7 @@ return Scaffold(
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             Row(
               children: const [
                 Expanded(
@@ -160,9 +167,7 @@ return Scaffold(
                 ),
               ],
             ),
-
             const SizedBox(height: 18),
-
             _ProfileSection(
               title: "Personal Information",
               children: [
@@ -188,9 +193,7 @@ return Scaffold(
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             const _ProfileSection(
               title: "Driving License",
               children: [
@@ -211,9 +214,7 @@ return Scaffold(
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             const _ProfileSection(
               title: "Vehicle Information",
               children: [
@@ -239,9 +240,7 @@ return Scaffold(
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             const _ProfileSection(
               title: "Driver Services",
               children: [
@@ -262,9 +261,7 @@ return Scaffold(
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
-
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -283,27 +280,26 @@ return Scaffold(
               ),
             ),
             const SizedBox(height: 12),
-
-ElevatedButton.icon(
-  style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.white,
-    foregroundColor: AppColors.primary,
-    elevation: 0,
-    padding: const EdgeInsets.symmetric(vertical: 15),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16),
-      side: const BorderSide(color: AppColors.primary),
-    ),
-  ),
-  onPressed: () {
-    Navigator.pop(context); // 🔥 back to passenger side
-  },
-  icon: const Icon(Icons.switch_account_rounded),
-  label: const Text(
-    "Switch to Passenger",
-    style: TextStyle(fontWeight: FontWeight.w800),
-  ),
-),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.card(context),
+                foregroundColor: AppColors.primary,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: const BorderSide(color: AppColors.primary),
+                ),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              icon: const Icon(Icons.switch_account_rounded),
+              label: const Text(
+                "Switch to Passenger",
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
           ],
         ),
       ),
@@ -325,19 +321,28 @@ class _ProfileSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(
+          color: AppColors.secondary.withOpacity(0.45),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
             ),
           ),
           const SizedBox(height: 12),
@@ -369,7 +374,7 @@ class _ProfileTile extends StatelessWidget {
             height: 38,
             width: 38,
             decoration: BoxDecoration(
-              color: AppColors.light,
+              color: AppColors.softBg(context),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: AppColors.primary, size: 20),
@@ -378,10 +383,10 @@ class _ProfileTile extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+                color: AppColors.text1(context),
               ),
             ),
           ),
@@ -389,10 +394,12 @@ class _ProfileTile extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textSecondary,
+                color: AppColors.text2(context),
               ),
             ),
           ),
@@ -418,9 +425,18 @@ class _ProfileStatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(
+          color: AppColors.secondary.withOpacity(0.45),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.06),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -428,19 +444,19 @@ class _ProfileStatCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: AppColors.text1(context),
             ),
           ),
           const SizedBox(height: 3),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
+              color: AppColors.text2(context),
             ),
           ),
         ],

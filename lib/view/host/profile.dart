@@ -13,8 +13,8 @@ class HostProfileScreen extends StatefulWidget {
 }
 
 class _HostProfileScreenState extends State<HostProfileScreen> {
-  String userName = "Host";
-  String email = "host@email.com";
+  String userName = "Rental";
+  String email = "rental@email.com";
   String phone = "0300-0000000";
 
   @override
@@ -30,8 +30,8 @@ class _HostProfileScreenState extends State<HostProfileScreen> {
     if (userString != null) {
       final user = jsonDecode(userString);
       setState(() {
-        userName = user['name'] ?? "Host";
-        email = user['email'] ?? "host@email.com";
+        userName = user['name'] ?? "Rental";
+        email = user['email'] ?? "rental@email.com";
         phone = user['phone'] ?? "0300-0000000";
       });
     }
@@ -40,20 +40,25 @@ class _HostProfileScreenState extends State<HostProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.bg(context),
       bottomNavigationBar: const HostBottomNavBar(currentIndex: 3),
       appBar: AppBar(
-        backgroundColor: AppColors.background,
+        backgroundColor: AppColors.bg(context),
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Host Profile',
+        title: Text(
+          'Rental Profile',
           style: TextStyle(
-            color: AppColors.textPrimary,
+            color: AppColors.text1(context),
             fontWeight: FontWeight.w800,
           ),
         ),
+        iconTheme: IconThemeData(
+          color: AppColors.text1(context),
+        ),
       ),
       body: ListView(
+        physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           Container(
@@ -63,6 +68,13 @@ class _HostProfileScreenState extends State<HostProfileScreen> {
                 colors: [AppColors.primary, AppColors.darkPrimary],
               ),
               borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.22),
+                  blurRadius: 22,
+                  offset: const Offset(0, 12),
+                ),
+              ],
             ),
             child: Row(
               children: [
@@ -95,7 +107,7 @@ class _HostProfileScreenState extends State<HostProfileScreen> {
           const SizedBox(height: 16),
           _ProfileTile(Icons.email_rounded, 'Email', email),
           _ProfileTile(Icons.phone_rounded, 'Phone', phone),
-          const _ProfileTile(Icons.verified_rounded, 'Host Status', 'Approved'),
+          const _ProfileTile(Icons.verified_rounded, 'Rental Status', 'Approved'),
           const _ProfileTile(Icons.directions_car_rounded, 'Listed Cars', '3'),
         ],
       ),
@@ -116,28 +128,50 @@ class _ProfileTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.secondary),
+        border: Border.all(
+          color: AppColors.secondary.withOpacity(0.45),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.primary),
+          Container(
+            height: 42,
+            width: 42,
+            decoration: BoxDecoration(
+              color: AppColors.softBg(context),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.primary),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
+                color: AppColors.text1(context),
               ),
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              color: AppColors.textSecondary,
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: AppColors.text2(context),
+              ),
             ),
           ),
         ],
