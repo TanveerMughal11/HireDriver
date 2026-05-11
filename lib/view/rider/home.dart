@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-
+import 'package:flutter_map/flutter_map.dart';
+import 'package:hire_driver/view/rider/service.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/rider/bottombar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'dart:async';
+import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
 class RiderHomeScreen extends StatefulWidget {
   const RiderHomeScreen({super.key});
 
@@ -15,13 +19,101 @@ class RiderHomeScreen extends StatefulWidget {
 class _RiderHomeScreenState extends State<RiderHomeScreen> {
   String userName = "Rider";
   bool isOnline = false;
+bool isLoading = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadUser();
+List<dynamic> incomingRequests = [];
+
+String bannerText = '';
+
+String earnings = 'PKR 0';
+String completedTrips = '0';
+
+String rating = '0';
+String trips = '0';
+String onlineHours = '0';
+@override
+void initState() {
+  super.initState();
+  _loadDashboard();
+}
+Future<void> _updateAvailability(bool value) async {
+  final oldValue = isOnline;
+
+  setState(() {
+    isOnline = value;
+  });
+
+  try {
+    final data = await RiderRequestsApi.updateAvailability(
+      isOnline: value,
+      liveLocationActive: value,
+    );
+
+    final availability = data['availability'] ?? data;
+
+    setState(() {
+      isOnline = availability['isOnline'] ?? value;
+    });
+  } catch (e) {
+    setState(() {
+      isOnline = oldValue;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString().replaceAll('Exception: ', ''),
+        ),
+      ),
+    );
   }
+}
+Future<void> _loadDashboard() async {
+  try {
+  final data = await RiderRequestsApi.getDashboard();
+final incomingData = await RiderRequestsApi.getIncomingRequests();
 
+    final dashboard = data['dashboard'] ?? {};
+
+    final rider = dashboard['rider'] ?? {};
+    final availability = rider['availability'] ?? {};
+
+    final todayEarnings = dashboard['todayEarnings'] ?? {};
+    final stats = dashboard['stats'] ?? {};
+    final pendingSummary = dashboard['pendingSummary'] ?? {};
+
+    setState(() {
+      userName = rider['name'] ?? 'Rider';
+
+      isOnline = availability['isOnline'] ?? false;
+
+      earnings =
+          '${todayEarnings['currency'] ?? 'PKR'} ${todayEarnings['amount'] ?? 0}';
+
+      completedTrips =
+          '${todayEarnings['completedTripsToday'] ?? 0}';
+
+      rating = '${stats['rating'] ?? 0}';
+      trips = '${stats['trips'] ?? 0}';
+      onlineHours = '${stats['onlineHours'] ?? 0}h';
+
+  bannerText =
+    incomingData['bannerText'] ??
+    pendingSummary['bannerText'] ??
+    '';
+
+incomingRequests =
+    incomingData['incomingRequests'] ??
+    dashboard['incomingRequests'] ??
+    [];
+      isLoading = false;
+    });
+  } catch (e) {
+    setState(() {
+      isLoading = false;
+    });
+  }
+}
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userString = prefs.getString('userData');
@@ -34,23 +126,43 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
     }
   }
 
-  void _openRequestDetail() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const DriverRequestDetailScreen(),
+void _openRequestDetail(String rideRequestId) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DriverRequestDetailScreen(
+        rideRequestId: rideRequestId,
       ),
-    );
-  }
+    ),
+  );
+}
 
-  void _openNavigation() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const DriverNavigationScreen(),
+void _openNavigation() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DriverNavigationScreen(
+        navigationData: {
+          "map": {
+            "pickupMarker": {
+              "address": "10, Lahore",
+              "coordinates": {
+                "lat": 31.4719997,
+                "lng": 74.36066,
+              }
+            }
+          },
+          "navigation": {
+            "etaMinutes": 8,
+            "locationLabel": "10, Lahore",
+            "tripMeta": "0.6 km • 5 min",
+            "actionButton": "Arrived at Pickup"
+          }
+        },
       ),
-    );
-  }
+    ),
+  );
+}
 
   void _openEarnings() {
     Navigator.push(
@@ -87,18 +199,20 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
               _DriverTopHeader(
                 userName: userName,
                 isOnline: isOnline,
-                onToggle: (value) {
-                  setState(() {
-                    isOnline = value;
-                  });
-                },
+           onToggle: _updateAvailability,
               ),
-              const SizedBox(height: 18),
-              const _DriverMapCard(),
+
               const SizedBox(height: 16),
-              const _TodayEarningsCard(),
+           _TodayEarningsCard(
+  earnings: earnings,
+  completedTrips: completedTrips,
+),
               const SizedBox(height: 16),
-              const _DriverStatsRow(),
+        _DriverStatsRow(
+  rating: rating,
+  trips: trips,
+  onlineHours: onlineHours,
+),
               const SizedBox(height: 22),
               Container(
                 width: double.infinity,
@@ -119,7 +233,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '2 new ride requests waiting for response',
+                 bannerText,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -136,25 +250,30 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
                 subtitle: 'Accept or review nearby book ride requests',
               ),
               const SizedBox(height: 12),
-              _IncomingRequestCard(
-                passengerName: 'Ali Raza',
-                tripType: 'Book a Ride • Mini',
-                pickup: 'DHA Phase 5, Lahore',
-                dropoff: 'Gulberg Main Market, Lahore',
-                fare: 'PKR 380',
-                distance: '12.4 km • 45 min',
-                onTap: _openRequestDetail,
-              ),
-              const SizedBox(height: 12),
-              _IncomingRequestCard(
-                passengerName: 'Usman Ahmad',
-                tripType: 'Book a Ride • Sedan',
-                pickup: 'Johar Town, Lahore',
-                dropoff: 'Liberty Market, Lahore',
-                fare: 'PKR 650',
-                distance: '9.8 km • 38 min',
-                onTap: _openRequestDetail,
-              ),
+Column(
+  children: incomingRequests.map((req) {
+    final user = req['user'] ?? {};
+    final pickup = req['pickup'] ?? {};
+    final dropoff = req['dropoff'] ?? {};
+    final fare = req['fare'] ?? {};
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _IncomingRequestCard(
+        passengerName: user['name'] ?? '',
+        tripType: req['subtitle'] ?? '',
+        pickup: pickup['address'] ?? '',
+        dropoff: dropoff['address'] ?? '',
+        fare:
+            '${fare['currency'] ?? 'PKR'} ${fare['amount'] ?? 0}',
+        distance: req['tripMeta'] ?? '',
+        onTap: () => _openRequestDetail(
+          req['requestId'] ?? '',
+        ),
+      ),
+    );
+  }).toList(),
+),
               const SizedBox(height: 22),
               const _SectionTitle(
                 title: 'Quick Actions',
@@ -251,61 +370,94 @@ class _DriverTopHeader extends StatelessWidget {
     );
   }
 }
-
+       
 class _DriverMapCard extends StatelessWidget {
-  const _DriverMapCard();
+  final Map<String, dynamic> review;
+
+  const _DriverMapCard({
+    required this.review,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final trip = review['trip'];
+
+    final pickupLat =
+        (trip['pickup']['coordinates']['lat'] as num).toDouble();
+    final pickupLng =
+        (trip['pickup']['coordinates']['lng'] as num).toDouble();
+
+    final dropLat =
+        (trip['dropoff']['coordinates']['lat'] as num).toDouble();
+    final dropLng =
+        (trip['dropoff']['coordinates']['lng'] as num).toDouble();
+
     return Container(
       height: 220,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppColors.softBg(context),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+        border: Border.all(
+          color: AppColors.secondary.withOpacity(0.45),
+        ),
       ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: CustomPaint(
-                painter: _DriverMapPainter(
-                  backgroundColor: AppColors.softBg(context),
-                  roadColor: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white.withOpacity(0.14)
-                      : Colors.white.withOpacity(0.95),
-                  laneColor: AppColors.secondary.withOpacity(0.35),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            FlutterMap(
+              options: MapOptions(
+                initialCenter: LatLng(pickupLat, pickupLng),
+                initialZoom: 14.5,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.example.hire_driver',
                 ),
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: [
+                        LatLng(pickupLat, pickupLng),
+                        LatLng(dropLat, dropLng),
+                      ],
+                      strokeWidth: 5,
+                      color: AppColors.primary,
+                    ),
+                  ],
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(pickupLat, pickupLng),
+                      width: 80,
+                      height: 80,
+                      child: const _GlowPickupMarker(),
+                    ),
+                    Marker(
+                      point: LatLng(dropLat, dropLng),
+                      width: 60,
+                      height: 60,
+                      child: const _MapPinBubble(
+                        color: Colors.green,
+                        icon: Icons.location_on_rounded,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const Positioned(
+              top: 14,
+              left: 14,
+              child: _MapInfoChip(
+                icon: Icons.my_location_rounded,
+                text: 'Live Request Route',
               ),
             ),
-          ),
-          const Positioned(
-            top: 14,
-            left: 14,
-            child: _MapInfoChip(
-              icon: Icons.my_location_rounded,
-              text: 'Live Location Active',
-            ),
-          ),
-          const Positioned(
-            right: 20,
-            top: 60,
-            child: _MapPinBubble(
-              color: AppColors.primary,
-              icon: Icons.directions_car_filled_rounded,
-            ),
-          ),
-          const Positioned(
-            left: 46,
-            bottom: 42,
-            child: _MapPinBubble(
-              color: Colors.green,
-              icon: Icons.person_pin_circle_rounded,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -417,7 +569,13 @@ class _MapInfoChip extends StatelessWidget {
 }
 
 class _TodayEarningsCard extends StatelessWidget {
-  const _TodayEarningsCard();
+final String earnings;
+final String completedTrips;
+
+const _TodayEarningsCard({
+  required this.earnings,
+  required this.completedTrips,
+});
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +604,7 @@ class _TodayEarningsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -460,7 +618,7 @@ class _TodayEarningsCard extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Rs. 4,850',
+                  earnings,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -469,7 +627,7 @@ class _TodayEarningsCard extends StatelessWidget {
                 ),
                 SizedBox(height: 3),
                 Text(
-                  '7 completed trips today',
+                  '$completedTrips completed trips today',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -485,16 +643,24 @@ class _TodayEarningsCard extends StatelessWidget {
 }
 
 class _DriverStatsRow extends StatelessWidget {
-  const _DriverStatsRow();
+final String rating;
+final String trips;
+final String onlineHours;
+
+const _DriverStatsRow({
+  required this.rating,
+  required this.trips,
+  required this.onlineHours,
+});
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
+      children: [
         Expanded(
           child: _MiniStatCard(
             icon: Icons.star_rounded,
-            value: '4.9',
+     value: rating,
             label: 'Rating',
           ),
         ),
@@ -502,7 +668,7 @@ class _DriverStatsRow extends StatelessWidget {
         Expanded(
           child: _MiniStatCard(
             icon: Icons.route_rounded,
-            value: '128',
+           value: trips,
             label: 'Trips',
           ),
         ),
@@ -510,7 +676,7 @@ class _DriverStatsRow extends StatelessWidget {
         Expanded(
           child: _MiniStatCard(
             icon: Icons.schedule_rounded,
-            value: '6h',
+    value: onlineHours,
             label: 'Online',
           ),
         ),
@@ -933,20 +1099,178 @@ class _MapPinBubble extends StatelessWidget {
   }
 }
 
-class DriverRequestDetailScreen extends StatelessWidget {
-  const DriverRequestDetailScreen({super.key});
+class DriverRequestDetailScreen extends StatefulWidget {
+  final String rideRequestId;
 
-  void _openNavigation(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const DriverNavigationScreen(),
+  const DriverRequestDetailScreen({
+    super.key,
+    required this.rideRequestId,
+  });
+
+  @override
+  State<DriverRequestDetailScreen> createState() =>
+      _DriverRequestDetailScreenState();
+}
+
+class _DriverRequestDetailScreenState extends State<DriverRequestDetailScreen> {
+  bool isLoading = true;
+  String? error;
+  Map<String, dynamic>? review;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchReview();
+  }
+Future<void> _declineRideRequest() async {
+  try {
+    setState(() {
+      isLoading = true;
+    });
+
+    final data = await RiderRequestsApi.declineRideRequest(
+      rideRequestId: widget.rideRequestId,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          data['message'] ?? 'Ride request declined successfully',
+        ),
+      ),
+    );
+
+    Navigator.pop(context, true);
+  } catch (e) {
+    setState(() {
+      isLoading = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString().replaceAll('Exception: ', ''),
+        ),
       ),
     );
   }
+}
+Future<void> _acceptRideRequest() async {
+  try {
+    setState(() {
+      isLoading = true;
+    });
 
+    final data = await RiderRequestsApi.acceptRideRequest(
+      rideRequestId: widget.rideRequestId,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          data['message'] ?? 'Ride request accepted successfully',
+        ),
+      ),
+    );
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DriverNavigationScreen(
+          navigationData: data['navigation'],
+        ),
+      ),
+    );
+  } catch (e) {
+    setState(() {
+      isLoading = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString().replaceAll('Exception: ', ''),
+        ),
+      ),
+    );
+  }
+}
+  Future<void> _fetchReview() async {
+    try {
+      final data = await RiderRequestsApi.getRideRequestReview(
+        rideRequestId: widget.rideRequestId,
+      );
+
+      setState(() {
+        review = data['review'];
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        error = e.toString().replaceAll('Exception: ', '');
+        isLoading = false;
+      });
+    }
+  }
+
+void _openNavigation() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DriverNavigationScreen(
+        navigationData: {
+          "map": {
+            "pickupMarker": {
+              "address": "10, Lahore",
+              "coordinates": {
+                "lat": 31.4719997,
+                "lng": 74.36066,
+              }
+            }
+          },
+          "navigation": {
+            "etaMinutes": 8,
+            "locationLabel": "10, Lahore",
+            "tripMeta": "0.6 km • 5 min",
+            "actionButton": "Arrived at Pickup"
+          }
+        },
+      ),
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: AppColors.bg(context),
+        appBar: AppBar(
+          backgroundColor: AppColors.bg(context),
+          title: const Text('Request Details'),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (error != null) {
+      return Scaffold(
+        backgroundColor: AppColors.bg(context),
+        appBar: AppBar(
+          backgroundColor: AppColors.bg(context),
+          title: const Text('Request Details'),
+        ),
+        body: Center(child: Text(error!)),
+      );
+    }
+
+    final user = review!['user'];
+    final trip = review!['trip'];
+    final fare = review!['fare'];
+
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       appBar: AppBar(
@@ -968,12 +1292,17 @@ class DriverRequestDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _DriverMapCard(review: review!),
+              const SizedBox(height: 16),
+
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: AppColors.softBg(context),
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+                  border: Border.all(
+                    color: AppColors.secondary.withOpacity(0.45),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -985,9 +1314,9 @@ class DriverRequestDetailScreen extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: const Text(
-                        'A',
-                        style: TextStyle(
+                      child: Text(
+                        user['avatarInitial'] ?? 'U',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -996,132 +1325,73 @@ class DriverRequestDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Ali Raza',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.text1(context),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Book a Ride • 2.4 km away',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.text2(context),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        user['name'] ?? 'Passenger',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.text1(context),
+                        ),
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Text(
-                        '25s left',
-                        style: TextStyle(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
+                    Text(
+                      '${user['rating'] ?? 0} ★',
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
                 ),
               ),
+
               const SizedBox(height: 16),
+
               _DetailCard(
                 title: 'Trip Details',
-                children: const [
+                children: [
                   _DetailRow(
                     icon: Icons.my_location_rounded,
                     title: 'Pickup',
-                    value: 'Johar Town, Lahore',
+                    value: trip['pickup']['address'] ?? '',
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   _DetailRow(
                     icon: Icons.location_on_rounded,
                     title: 'Drop',
-                    value: 'Gulberg, Lahore',
+                    value: trip['dropoff']['address'] ?? '',
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                  _DetailRow(
+                    icon: Icons.two_wheeler_rounded,
+                    title: 'Vehicle',
+                    value: trip['vehicleType'] ?? '',
+                  ),
+                  const SizedBox(height: 12),
                   _DetailRow(
                     icon: Icons.route_rounded,
-                    title: 'Distance to Pickup',
-                    value: '2.4 km',
+                    title: 'Distance',
+                    value: '${trip['distanceKm']} km • ${trip['durationMinutes']} min',
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   _DetailRow(
                     icon: Icons.payments_rounded,
-                    title: 'Offered Fare',
-                    value: 'Rs. 1,250',
+                    title: 'Fare',
+                    value: '${fare['currency']} ${fare['amount']}',
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              _DetailCard(
-                title: 'Passenger Notes',
-                children: [
-                  Text(
-                    'Please arrive near the main gate. I have light luggage.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      height: 1.5,
-                      color: AppColors.text2(context),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+
               const SizedBox(height: 20),
+
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: AppColors.secondary.withOpacity(0.55),
-                        ),
-                        foregroundColor: Colors.red,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        'Decline',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.primary),
-                        foregroundColor: AppColors.primary,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      onPressed: () {},
-                      child: const Text(
-                        'Counter',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
+  onPressed: (review?['actions']?['canDecline'] == true)
+    ? _declineRideRequest
+    : null,
+                      child: const Text('Decline'),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1130,17 +1400,11 @@ class DriverRequestDetailScreen extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
                       ),
-                      onPressed: () => _openNavigation(context),
-                      child: const Text(
-                        'Accept',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
+onPressed: (review?['actions']?['canAccept'] == true)
+    ? _acceptRideRequest
+    : null,
+                      child: const Text('Accept'),
                     ),
                   ),
                 ],
@@ -1153,8 +1417,184 @@ class DriverRequestDetailScreen extends StatelessWidget {
   }
 }
 
-class DriverNavigationScreen extends StatelessWidget {
-  const DriverNavigationScreen({super.key});
+
+class DriverNavigationScreen extends StatefulWidget {
+final String? rideRequestId;
+final Map<String, dynamic>? navigationData;
+
+const DriverNavigationScreen({
+  super.key,
+  this.rideRequestId,
+  this.navigationData,
+});
+
+  @override
+  State<DriverNavigationScreen> createState() => _DriverNavigationScreenState();
+}
+
+class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
+  final MapController mapController = MapController();
+
+  StreamSubscription<Position>? positionStream;
+  LatLng? driverPoint;
+  LatLng? pickupPoint;
+  List<LatLng> routePoints = [];
+Map<String, dynamic>? apiNavigationData;
+bool isNavigationLoading = false;
+  bool isRouteLoading = true;
+Future<void> _loadNavigation() async {
+  try {
+    setState(() {
+      isNavigationLoading = true;
+    });
+
+    final data = await RiderRequestsApi.getRideNavigation(
+      rideRequestId: widget.rideRequestId!,
+    );
+
+    apiNavigationData = data['navigation'];
+
+    setState(() {
+      isNavigationLoading = false;
+    });
+
+    _setPickupLocation();
+    _startLiveLocation();
+  } catch (e) {
+    setState(() {
+      isNavigationLoading = false;
+    });
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString().replaceAll('Exception: ', ''),
+        ),
+      ),
+    );
+  }
+}
+@override
+void initState() {
+  super.initState();
+
+  if (widget.navigationData != null) {
+    apiNavigationData = widget.navigationData;
+    _setPickupLocation();
+    _startLiveLocation();
+  } else if (widget.rideRequestId != null &&
+      widget.rideRequestId!.isNotEmpty) {
+    _loadNavigation();
+  } else {
+    _setPickupLocation();
+    _startLiveLocation();
+  }
+}
+
+  void _setPickupLocation() {
+final pickup = apiNavigationData?['map']?['pickupMarker'];
+    final coordinates = pickup?['coordinates'];
+
+    final pickupLat =
+        (coordinates?['lat'] as num?)?.toDouble() ?? 31.4719997;
+    final pickupLng =
+        (coordinates?['lng'] as num?)?.toDouble() ?? 74.36066;
+
+    pickupPoint = LatLng(pickupLat, pickupLng);
+  }
+
+  Future<void> _startLiveLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+    if (!serviceEnabled) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enable location services')),
+      );
+      return;
+    }
+
+    var permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location permission is required')),
+      );
+      return;
+    }
+
+    positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).listen((position) async {
+      final newDriverPoint = LatLng(position.latitude, position.longitude);
+
+      setState(() {
+        driverPoint = newDriverPoint;
+      });
+
+      if (pickupPoint != null) {
+        await _fetchRoute(
+          from: newDriverPoint,
+          to: pickupPoint!,
+        );
+      }
+
+      mapController.move(newDriverPoint, 15.5);
+    });
+  }
+
+  Future<void> _fetchRoute({
+    required LatLng from,
+    required LatLng to,
+  }) async {
+    try {
+      final url = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${from.longitude},${from.latitude};'
+        '${to.longitude},${to.latitude}'
+        '?overview=full&geometries=geojson',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) return;
+
+      final data = jsonDecode(response.body);
+
+      final coordinates =
+          data['routes'][0]['geometry']['coordinates'] as List;
+
+      final points = coordinates.map<LatLng>((item) {
+        return LatLng(
+          (item[1] as num).toDouble(),
+          (item[0] as num).toDouble(),
+        );
+      }).toList();
+
+      if (!mounted) return;
+
+      setState(() {
+        routePoints = points;
+        isRouteLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        isRouteLoading = false;
+      });
+    }
+  }
 
   void _openActiveRide(BuildContext context) {
     Navigator.push(
@@ -1166,7 +1606,23 @@ class DriverNavigationScreen extends StatelessWidget {
   }
 
   @override
+  void dispose() {
+    positionStream?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+final nav = apiNavigationData?['navigation'];
+final pickup = apiNavigationData?['map']?['pickupMarker'];
+
+    final eta = nav?['etaMinutes'] ?? 8;
+    final locationLabel = nav?['locationLabel'] ?? '10, Lahore';
+    final tripMeta = nav?['tripMeta'] ?? '0.6 km • 5 min';
+    final actionButton = nav?['actionButton'] ?? 'Arrived at Pickup';
+
+    final centerPoint = driverPoint ?? pickupPoint ?? const LatLng(31.4719997, 74.36066);
+
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       appBar: AppBar(
@@ -1190,80 +1646,107 @@ class DriverNavigationScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.softBg(context),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+                border: Border.all(
+                  color: AppColors.secondary.withOpacity(0.45),
+                ),
               ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: CustomPaint(
-                        painter: _DriverMapPainter(
-                          backgroundColor: AppColors.softBg(context),
-                          roadColor:
-                              Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.white.withOpacity(0.14)
-                                  : Colors.white.withOpacity(0.95),
-                          laneColor: AppColors.secondary.withOpacity(0.35),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  children: [
+                    FlutterMap(
+                      mapController: mapController,
+                      options: MapOptions(
+                        initialCenter: centerPoint,
+                        initialZoom: 15.5,
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.example.hire_driver',
                         ),
+
+                        if (routePoints.isNotEmpty)
+                          PolylineLayer(
+                            polylines: [
+                              Polyline(
+                                points: routePoints,
+                                strokeWidth: 5,
+                                color: AppColors.primary,
+                              ),
+                            ],
+                          ),
+
+                        MarkerLayer(
+                          markers: [
+                            if (driverPoint != null)
+                              Marker(
+                                point: driverPoint!,
+                                width: 70,
+                                height: 70,
+                                child: const _MapPinBubble(
+                                  color: AppColors.primary,
+                                  icon: Icons.two_wheeler_rounded,
+                                ),
+                              ),
+
+                            if (pickupPoint != null)
+                              Marker(
+                                point: pickupPoint!,
+                                width: 70,
+                                height: 70,
+                                child: const _GlowPickupMarker(),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    Positioned(
+                      top: 14,
+                      left: 14,
+                      child: _MapInfoChip(
+                        icon: Icons.navigation_rounded,
+                        text: isRouteLoading
+                            ? 'Finding route...'
+                            : 'ETA $eta mins',
                       ),
                     ),
-                  ),
-                  const Positioned(
-                    top: 14,
-                    left: 14,
-                    child: _MapInfoChip(
-                      icon: Icons.navigation_rounded,
-                      text: 'Next turn in 300 m',
-                    ),
-                  ),
-                  const Positioned(
-                    right: 24,
-                    top: 80,
-                    child: _MapPinBubble(
-                      color: AppColors.primary,
-                      icon: Icons.directions_car_filled_rounded,
-                    ),
-                  ),
-                  const Positioned(
-                    left: 56,
-                    bottom: 70,
-                    child: _MapPinBubble(
-                      color: Colors.green,
-                      icon: Icons.person_pin_circle_rounded,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
+
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: AppColors.card(context),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              border: Border.all(
+                color: AppColors.secondary.withOpacity(0.45),
+              ),
             ),
             child: Column(
               children: [
-                const _DetailRow(
+                _DetailRow(
                   icon: Icons.timer_rounded,
                   title: 'ETA',
-                  value: '8 mins',
+                  value: '$eta mins',
                 ),
                 const SizedBox(height: 12),
-                const _DetailRow(
+                _DetailRow(
                   icon: Icons.my_location_rounded,
                   title: 'Pickup',
-                  value: 'Johar Town, Lahore',
+                  value: pickup?['address'] ?? locationLabel,
+                ),
+                const SizedBox(height: 12),
+                _DetailRow(
+                  icon: Icons.route_rounded,
+                  title: 'Trip',
+                  value: tripMeta,
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -1279,9 +1762,9 @@ class DriverNavigationScreen extends StatelessWidget {
                       ),
                     ),
                     onPressed: () => _openActiveRide(context),
-                    child: const Text(
-                      'Arrived at Pickup',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                    child: Text(
+                      actionButton,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ),
                 ),
@@ -1325,43 +1808,81 @@ class DriverRideActiveScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              decoration: BoxDecoration(
-                color: AppColors.softBg(context),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+     Expanded(
+  child: Container(
+    margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+    decoration: BoxDecoration(
+      color: AppColors.softBg(context),
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(
+        color: AppColors.secondary.withOpacity(0.45),
+      ),
+    ),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Stack(
+        children: [
+          FlutterMap(
+            options: MapOptions(
+              initialCenter: const LatLng(31.5204, 74.3587),
+              initialZoom: 14.8,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.hire_driver',
               ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: CustomPaint(
-                        painter: _DriverMapPainter(
-                          backgroundColor: AppColors.softBg(context),
-                          roadColor:
-                              Theme.of(context).brightness == Brightness.dark
-                                  ? Colors.white.withOpacity(0.14)
-                                  : Colors.white.withOpacity(0.95),
-                          laneColor: AppColors.secondary.withOpacity(0.35),
-                        ),
-                      ),
-                    ),
+
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: const [
+                      LatLng(31.5204, 74.3587),
+                      LatLng(31.5100, 74.3440),
+                    ],
+                    strokeWidth: 5,
+                    color: AppColors.primary,
                   ),
-                  const Positioned(
-                    top: 14,
-                    left: 14,
-                    child: _MapInfoChip(
-                      icon: Icons.route_rounded,
-                      text: 'Destination route active',
+                ],
+              ),
+
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: const LatLng(31.5204, 74.3587),
+                    width: 70,
+                    height: 70,
+                    child: const _GlowPickupMarker(),
+                  ),
+
+                  Marker(
+                    point: const LatLng(31.5100, 74.3440),
+                    width: 60,
+                    height: 60,
+                    child: const _MapPinBubble(
+                      color: Colors.green,
+                      icon: Icons.location_on_rounded,
                     ),
                   ),
                 ],
               ),
+            ],
+          ),
+
+          const Positioned(
+            top: 14,
+            left: 14,
+            child: _MapInfoChip(
+              icon: Icons.route_rounded,
+              text: 'Destination route active',
             ),
           ),
+        ],
+      ),
+    ),
+  ),
+),
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(18),
@@ -1594,7 +2115,10 @@ class RiderEarningsScreen extends StatelessWidget {
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
-            const _TodayEarningsCard(),
+const _TodayEarningsCard(
+  earnings: 'PKR 0',
+  completedTrips: '0',
+),
             const SizedBox(height: 16),
             Row(
               children: const [
@@ -2149,6 +2673,69 @@ class _ReviewCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+class _GlowPickupMarker extends StatefulWidget {
+  const _GlowPickupMarker();
+
+  @override
+  State<_GlowPickupMarker> createState() => _GlowPickupMarkerState();
+}
+
+class _GlowPickupMarkerState extends State<_GlowPickupMarker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+  late final Animation<double> animation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+
+    animation = Tween<double>(
+      begin: 0.9,
+      end: 1.12,
+    ).animate(
+      CurvedAnimation(
+        parent: controller,
+        curve: Curves.easeInOut,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: animation,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.35),
+              blurRadius: 22,
+              spreadRadius: 8,
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.my_location_rounded,
+          color: Colors.white,
+          size: 34,
+        ),
       ),
     );
   }

@@ -6,7 +6,8 @@ import 'package:hire_driver/view/book%20a%20ride/provider/offerrider.dart';
 import 'package:hire_driver/view/book%20a%20ride/screens/drivercomingtoyou.dart';
 import 'package:hire_driver/view/book%20a%20ride/screens/drivertravling.dart';
 import 'package:provider/provider.dart';
-
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 class DriverOffersScreen extends StatefulWidget {
   final String rideId;
   final int offeredFare;
@@ -458,123 +459,123 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
     );
   }
 
-  Widget _buildMapSection() {
-    final provider = context.watch<DriverOffersProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+Widget _buildMapSection() {
+  final provider = context.watch<DriverOffersProvider>();
 
-    return Container(
-      height: 220,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: isDark ? AppColors.darkCard : const Color(0xFFDDE4D7),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: CustomPaint(
-              painter: MapPainter(isDark: isDark),
-            ),
-          ),
-          const Positioned(
-            left: 55,
-            top: 70,
-            child: AnimatedDriverPin(
-              color: Color(0xFF10B981),
-              icon: Icons.local_taxi_rounded,
-              delay: 0,
-            ),
-          ),
-          const Positioned(
-            left: 138,
-            top: 112,
-            child: AnimatedDriverPin(
-              color: Color(0xFFF97316),
-              icon: Icons.location_on_rounded,
-              delay: 150,
-            ),
-          ),
-          const Positioned(
-            right: 88,
-            top: 48,
-            child: AnimatedDriverPin(
-              color: Color(0xFF3B82F6),
-              icon: Icons.directions_car_filled_rounded,
-              delay: 300,
-            ),
-          ),
-          const Positioned(
-            right: 50,
-            top: 104,
-            child: AnimatedDriverPin(
-              color: Color(0xFF8B5CF6),
-              icon: Icons.local_taxi_rounded,
-              delay: 500,
-            ),
-          ),
-          Positioned(
-            left: 18,
-            right: 18,
-            bottom: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.card(context),
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(.08),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+  final hasPickup =
+      provider.pickupLat != null && provider.pickupLng != null;
+
+  final pickupPoint = hasPickup
+      ? LatLng(provider.pickupLat!, provider.pickupLng!)
+      : const LatLng(31.5204, 74.3587);
+
+  return Container(
+    height: 220,
+    margin: const EdgeInsets.symmetric(horizontal: 16),
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(24),
+      color: AppColors.card(context),
+    ),
+    child: Stack(
+      children: [
+        Positioned.fill(
+          child: FlutterMap(
+            options: MapOptions(
+              initialCenter: pickupPoint,
+              initialZoom: 15.5,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.none,
               ),
-              child: Row(
-                children: [
-                  Container(
-                    height: 10,
-                    width: 10,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF59E0B),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Broadcasting PKR ${widget.offeredFare} to nearby drivers...',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.text1(context),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      provider.timerText,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.darkPrimary,
-                      ),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.hire_driver',
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: pickupPoint,
+                    width: 80,
+                    height: 80,
+                    child: const AnimatedDriverPin(
+                      color: Color(0xFFF97316),
+                      icon: Icons.person_pin_circle_rounded,
+                      delay: 0,
                     ),
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+
+        Positioned(
+          left: 18,
+          right: 18,
+          bottom: 16,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.card(context),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  height: 10,
+                  width: 10,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF59E0B),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    provider.pickupAddress,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.text1(context),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    provider.timerText,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.darkPrimary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildStatusBar() {
     final provider = context.watch<DriverOffersProvider>();

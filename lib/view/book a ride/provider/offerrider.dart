@@ -12,6 +12,10 @@ class DriverOffersProvider extends ChangeNotifier {
   int respondedDrivers = 0;
   String errorMessage = '';
 
+  String pickupAddress = 'Current Location';
+  double? pickupLat;
+  double? pickupLng;
+
   List<Map<String, dynamic>> offers = [];
 
   String get timerText {
@@ -57,6 +61,21 @@ class DriverOffersProvider extends ChangeNotifier {
   void setRideData(Map<String, dynamic> data) {
     final ride = data['ride'];
     final rawOffers = ride?['driverOffers'];
+
+    final pickup = ride?['pickup'];
+
+    if (pickup is Map) {
+      pickupAddress = pickup['address']?.toString() ?? 'Current Location';
+
+      final coordinates = pickup['coordinates'];
+      if (coordinates is Map) {
+        final lat = coordinates['lat'];
+        final lng = coordinates['lng'];
+
+        if (lat is num) pickupLat = lat.toDouble();
+        if (lng is num) pickupLng = lng.toDouble();
+      }
+    }
 
     live = data['live'] == true;
 
@@ -152,6 +171,9 @@ class DriverOffersProvider extends ChangeNotifier {
     live = false;
     respondedDrivers = 0;
     errorMessage = '';
+    pickupAddress = 'Current Location';
+    pickupLat = null;
+    pickupLng = null;
     offers = [];
   }
 

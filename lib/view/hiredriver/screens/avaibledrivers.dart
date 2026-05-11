@@ -3,7 +3,8 @@ import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/hiredriver/provider/available_drivers.dart';
 import 'package:hire_driver/view/hiredriver/screens/confirmbooking.dart';
 import 'package:provider/provider.dart';
-
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 class AvailableDriversScreen extends StatelessWidget {
   final String hireRequestId;
 
@@ -375,7 +376,7 @@ class _AvailableDriversBodyState extends State<_AvailableDriversBody> {
                                 children: [
                                   _buildTripSummaryCard(provider.selectedTrip),
                                   if (isMapView)
-                                    _buildMapSection(provider.mapLabel),
+                                  _buildMapSection(provider),
                                   _buildControlsBar(),
                                   if (driverList.isEmpty)
                                     Padding(
@@ -593,109 +594,47 @@ class _AvailableDriversBodyState extends State<_AvailableDriversBody> {
     );
   }
 
-  Widget _buildMapSection(String mapLabel) {
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      height: 220,
-      width: double.infinity,
-      color: AppColors.softBg(context),
-      child: Stack(
-        children: [
-          CustomPaint(
-            size: const Size(double.infinity, 220),
-            painter: _MiniMapPainter(
-              backgroundColor: AppColors.softBg(context),
-              roadColor: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white.withOpacity(0.16)
-                  : Colors.white.withOpacity(0.95),
-              gridColor: AppColors.secondary.withOpacity(
-                Theme.of(context).brightness == Brightness.dark ? 0.22 : 0.45,
-              ),
-            ),
-          ),
-          const Positioned(
-            left: 55,
-            top: 60,
-            child: _DriverMapPin(
-              color: Color(0xFF2F80ED),
-              icon: Icons.local_taxi_rounded,
-            ),
-          ),
-          const Positioned(
-            left: 30,
-            top: 120,
-            child: _DriverMapPin(
-              color: Color(0xFFFF7A2F),
-              icon: Icons.location_on_rounded,
-            ),
-          ),
-          const Positioned(
-            right: 110,
-            top: 105,
-            child: _DriverMapPin(
-              color: Color(0xFF2563EB),
-              icon: Icons.local_taxi_rounded,
-            ),
-          ),
-          const Positioned(
-            right: 35,
-            top: 52,
-            child: _DriverMapPin(
-              color: Color(0xFF19C37D),
-              icon: Icons.local_taxi_rounded,
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 18,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.card(context),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(0.08),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircleAvatar(
-                      radius: 8,
-                      backgroundColor: Color(0xFF19C37D),
-                      child: Icon(
-                        Icons.circle,
-                        size: 8,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      mapLabel,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.text1(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+Widget _buildMapSection(AvailableDriversProvider provider) {
+  final pickupCoords = provider.selectedTrip?['pickup']?['coordinates'];
+
+  final pickupLat = pickupCoords?['lat'];
+  final pickupLng = pickupCoords?['lng'];
+
+  final hasPickupCoords = pickupLat is num && pickupLng is num;
+
+  final pickupPoint = hasPickupCoords
+      ? LatLng(pickupLat.toDouble(), pickupLng.toDouble())
+      : const LatLng(31.5204, 74.3587);
+
+  return Container(
+    margin: const EdgeInsets.only(top: 4),
+    height: 240,
+    width: double.infinity,
+    color: AppColors.softBg(context),
+    child: FlutterMap(
+      options: MapOptions(
+        initialCenter: pickupPoint,
+        initialZoom: 15.5,
       ),
-    );
-  }
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.example.hire_driver',
+        ),
+        MarkerLayer(
+          markers: [
+            Marker(
+              point: pickupPoint,
+              width: 80,
+              height: 80,
+              child: const _GlowPickupMarker(),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildControlsBar() {
     return Container(
@@ -1162,6 +1101,7 @@ class _DriverMapPin extends StatelessWidget {
   }
 }
 
+
 class _MiniMapPainter extends CustomPainter {
   final Color backgroundColor;
   final Color roadColor;
@@ -1225,5 +1165,62 @@ class _MiniMapPainter extends CustomPainter {
     return oldDelegate.backgroundColor != backgroundColor ||
         oldDelegate.roadColor != roadColor ||
         oldDelegate.gridColor != gridColor;
+  }
+}
+class _GlowPickupMarker extends StatefulWidget {
+  const _GlowPickupMarker();
+
+  @override
+  State<_GlowPickupMarker> createState() => _GlowPickupMarkerState();
+}
+
+class _GlowPickupMarkerState extends State<_GlowPickupMarker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+  late final Animation<double> animation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+
+    animation = Tween<double>(begin: 0.9, end: 1.12).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: animation,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.35),
+              blurRadius: 22,
+              spreadRadius: 8,
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.my_location_rounded,
+          color: Colors.white,
+          size: 34,
+        ),
+      ),
+    );
   }
 }

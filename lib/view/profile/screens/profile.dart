@@ -18,6 +18,7 @@ import 'package:hire_driver/view/help_and_support.dart';
 import 'package:hire_driver/view/host/home.dart';
 import 'package:hire_driver/auth/login/screen/login.dart';
 import 'package:hire_driver/view/settings.dart';
+import 'package:hire_driver/view/updateinfo.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -147,7 +148,7 @@ class _ProfileHeader extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const EditProfileScreen(),
+                      builder: (_) => const ProfileEditScreen(),
                     ),
                   );
                 },
@@ -332,7 +333,8 @@ class _ProfileActionsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ProfileDriverStatusProvider>(
       builder: (context, provider, _) {
-        final driverStatus = provider.driverStatus;
+      final riderStatus = provider.riderStatus;
+final driverStatus = provider.driverStatus;
 
         return Container(
           decoration: BoxDecoration(
@@ -362,7 +364,7 @@ class _ProfileActionsCard extends StatelessWidget {
                   padding: EdgeInsets.all(16),
                   child: CircularProgressIndicator(),
                 )
-              else if (driverStatus == 'approved')
+            else if (riderStatus == 'approved')
                 _MenuTile(
                   icon: Icons.switch_account_rounded,
                   title: 'Switch to Rider',
@@ -375,9 +377,9 @@ class _ProfileActionsCard extends StatelessWidget {
                     );
                   },
                 )
-              else if (driverStatus == 'pending_admin' ||
-                  driverStatus == 'submitted' ||
-                  driverStatus == 'pending')
+   else if (riderStatus == 'pending_admin' ||
+    riderStatus == 'submitted' ||
+    riderStatus == 'pending')
                 _MenuTile(
                   icon: Icons.fact_check_outlined,
                   title: 'Check Application Status',
@@ -403,19 +405,64 @@ class _ProfileActionsCard extends StatelessWidget {
                     );
                   },
                 ),
-
-              _MenuTile(
-                icon: Icons.app_registration_rounded,
-                title: 'Apply as Driver',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ApplyAsDriver(),
-                    ),
-                  );
-                },
-              ),
+                   const _TileDivider(),
+              if (provider.isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                )
+              else if (driverStatus == 'approved')
+                _MenuTile(
+                  icon: Icons.drive_eta_rounded,
+                  title: 'Switch to Driver',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DriverHomeScreen1(),
+                      ),
+                    );
+                  },
+                )
+              else if (driverStatus == 'pending')
+                _MenuTile(
+                  icon: Icons.fact_check_outlined,
+                  title: 'Application Status',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ApplyAsDriver(),
+                      ),
+                    );
+                  },
+                )
+              else if (driverStatus == 'rejected')
+                _MenuTile(
+                  icon: Icons.app_registration_rounded,
+                  title: 'Apply Again as Driver',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ApplyAsDriver(),
+                      ),
+                    );
+                  },
+                )
+              else
+                _MenuTile(
+                  icon: Icons.app_registration_rounded,
+                  title: 'Apply as Driver',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ApplyAsDriver(),
+                      ),
+                    );
+                  },
+                ),
               const _TileDivider(),
               _MenuTile(
                 icon: Icons.home_work_outlined,
@@ -430,18 +477,7 @@ class _ProfileActionsCard extends StatelessWidget {
                 },
               ),
               const _TileDivider(),
-              _MenuTile(
-                icon: Icons.home_work_outlined,
-                title: 'Driver Screens',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DriverHomeScreen1(),
-                    ),
-                  );
-                },
-              ),
+      
      
               const _TileDivider(),
               _MenuTile(
@@ -453,6 +489,34 @@ class _ProfileActionsCard extends StatelessWidget {
                     MaterialPageRoute(
                       builder: (_) => const ActiveRentalScreen(
                         booking: {},
+                      ),
+                    ),
+                  );
+                },
+              ),
+                     _MenuTile(
+                icon: Icons.key_rounded,
+                title: 'Driver Screens',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DriverHomeScreen1(
+                    
+                      ),
+                    ),
+                  );
+                },
+              ),
+                                _MenuTile(
+                icon: Icons.key_rounded,
+                title: 'Rider Screens',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const RiderHomeScreen(
+                   
                       ),
                     ),
                   );

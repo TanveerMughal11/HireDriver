@@ -5,7 +5,7 @@ import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/driver/bottombar.dart';
 import 'package:hire_driver/view/rider/bottombar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:http/http.dart' as http;
 class DriverHomeScreen1 extends StatefulWidget {
   const DriverHomeScreen1({super.key});
 
@@ -16,13 +16,110 @@ class DriverHomeScreen1 extends StatefulWidget {
 class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
   String userName = "Driver";
   bool isOnline = false;
+bool isDashboardLoading = true;
+String dashboardError = '';
 
+String bannerText = '0 new hire driver requests waiting for response';
+String todayAmount = 'PKR 0';
+String completedTripsToday = '0 completed trips today';
+
+String rating = '0.0';
+String trips = '0';
+String onlineHours = '0h';
+
+List<Map<String, dynamic>> incomingRequests = [];
   @override
   void initState() {
     super.initState();
-    _loadUser();
+_loadUser();
+_fetchDriverDashboard();
+_fetchIncomingRequests();
   }
+  Future<void> _fetchIncomingRequests() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
 
+    if (token == null || token.isEmpty) {
+      throw Exception('Token not found. Please login again.');
+    }
+
+    final response = await http.get(
+      Uri.parse(
+        'https://hiredrive-fal0.onrender.com/api/driver-requests/incoming-requests',
+      ),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      setState(() {
+        bannerText =
+            data['bannerText'] ?? '0 new hire driver requests waiting for response';
+
+        incomingRequests = List<Map<String, dynamic>>.from(
+          data['incomingRequests'] ?? [],
+        );
+      });
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load incoming requests');
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
+}
+Future<void> _updateDriverAvailability(bool value) async {
+  final oldValue = isOnline;
+
+  setState(() {
+    isOnline = value;
+  });
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Token not found. Please login again.');
+    }
+
+    final response = await http.patch(
+      Uri.parse('https://hiredrive-fal0.onrender.com/api/driver-requests/availability'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        "isOnline": value,
+        "liveLocationActive": value,
+      }),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      setState(() {
+        isOnline = data['availability']['isOnline'] ?? value;
+      });
+    } else {
+      throw Exception(data['message'] ?? 'Failed to update availability');
+    }
+  } catch (e) {
+    setState(() {
+      isOnline = oldValue;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
+}
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userString = prefs.getString('userData');
@@ -34,25 +131,101 @@ class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
       });
     }
   }
+Future<void> _fetchDriverDashboard() async {
+  setState(() {
+    isDashboardLoading = true;
+    dashboardError = '';
+  });
 
-  void _openRequestDetail() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const DriverRequestDetailScreen(),
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Token not found. Please login again.');
+    }
+
+    final response = await http.get(
+      Uri.parse('https://hiredrive-fal0.onrender.com/api/driver-requests/dashboard'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      final dashboard = data['dashboard'];
+
+      setState(() {
+        userName = dashboard['driver']?['name'] ?? userName;
+        isOnline = dashboard['driver']?['availability']?['isOnline'] ?? false;
+
+        final earnings = dashboard['todayEarnings'];
+        todayAmount =
+            '${earnings?['currency'] ?? 'PKR'} ${earnings?['amount'] ?? 0}';
+        completedTripsToday =
+            '${earnings?['completedTripsToday'] ?? 0} completed trips today';
+
+        final statsData = dashboard['stats'];
+        rating = '${statsData?['rating'] ?? 0.0}';
+        trips = '${statsData?['trips'] ?? 0}';
+        onlineHours = '${statsData?['onlineHours'] ?? 0}h';
+
+        bannerText =
+            dashboard['pendingSummary']?['bannerText'] ??
+                '0 new hire driver requests waiting for response';
+
+        incomingRequests =
+            List<Map<String, dynamic>>.from(dashboard['incomingRequests'] ?? []);
+
+        isDashboardLoading = false;
+      });
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load dashboard');
+    }
+  } catch (e) {
+    setState(() {
+      isDashboardLoading = false;
+      dashboardError = e.toString();
+    });
+  }
+}
+void _openRequestDetail(String requestId) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DriverRequestDetailScreen(
+        hireRequestId: requestId,
+      ),
+    ),
+  );
+}
+
+void _openNavigation() {
+  if (incomingRequests.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('No active navigation request found'),
       ),
     );
+    return;
   }
 
-  void _openNavigation() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const DriverNavigationScreen(),
+  final requestId = incomingRequests.first['requestId'] ?? '';
+
+  if (requestId.isEmpty) return;
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DriverNavigationScreen(
+        hireRequestId: requestId,
       ),
-    );
-  }
-
+    ),
+  );
+}
   void _openEarnings() {
     Navigator.push(
       context,
@@ -88,18 +261,21 @@ class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
               _DriverTopHeader(
                 userName: userName,
                 isOnline: isOnline,
-                onToggle: (value) {
-                  setState(() {
-                    isOnline = value;
-                  });
-                },
+           onToggle: _updateDriverAvailability,
               ),
               const SizedBox(height: 18),
               const _DriverMapCard(),
               const SizedBox(height: 16),
-              const _TodayEarningsCard(),
+     _TodayEarningsCard(
+  amount: todayAmount,
+  completedTrips: completedTripsToday,
+),
               const SizedBox(height: 16),
-              const _DriverStatsRow(),
+        _DriverStatsRow(
+  rating: rating,
+  trips: trips,
+  onlineHours: onlineHours,
+),
               const SizedBox(height: 22),
               Container(
                 width: double.infinity,
@@ -120,7 +296,7 @@ class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '2 new hire driver requests waiting for response',
+                        bannerText,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -137,25 +313,30 @@ class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
                 subtitle: 'Accept or review hire driver requests',
               ),
               const SizedBox(height: 12),
-              _IncomingRequestCard(
-                passengerName: 'Muhammad Fahad',
-                tripType: 'Hire Driver • One-Way Trip',
-                pickup: 'DHA Phase 5, Lahore',
-                dropoff: 'Gulberg Main Market, Lahore',
-                fare: 'PKR 180',
-                distance: '12.4 km • 45 min',
-                onTap: _openRequestDetail,
-              ),
-              const SizedBox(height: 12),
-              _IncomingRequestCard(
-                passengerName: 'Tanveer Mughal',
-                tripType: 'Hire Driver • Monthly Hire',
-                pickup: 'Johar Town, Lahore',
-                dropoff: 'Same pickup area',
-                fare: 'PKR 13,500',
-                distance: 'Monthly • 8 hrs/day',
-                onTap: _openRequestDetail,
-              ),
+if (incomingRequests.isEmpty)
+  Text(
+    'No incoming requests available',
+    style: TextStyle(
+      color: AppColors.text2(context),
+      fontWeight: FontWeight.w600,
+    ),
+  )
+else
+  ...incomingRequests.map((req) {
+    final fare = req['fare'];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _IncomingRequestCard(
+        passengerName: req['title'] ?? req['rider']?['name'] ?? 'Passenger',
+        tripType: req['subtitle'] ?? 'Hire Driver',
+        pickup: req['pickup']?['address'] ?? '',
+        dropoff: req['dropoff']?['address'] ?? '',
+        fare: '${fare?['currency'] ?? 'PKR'} ${fare?['amount'] ?? 0}',
+        distance: req['tripMeta'] ?? '',
+    onTap: () => _openRequestDetail(req['requestId'] ?? ''),
+      ),
+    );
+  }),
               const SizedBox(height: 22),
               const _SectionTitle(
                 title: 'Quick Actions',
@@ -418,8 +599,13 @@ class _MapInfoChip extends StatelessWidget {
 }
 
 class _TodayEarningsCard extends StatelessWidget {
-  const _TodayEarningsCard();
+  final String amount;
+  final String completedTrips;
 
+  const _TodayEarningsCard({
+    this.amount = 'PKR 0',
+    this.completedTrips = '0 completed trips today',
+  });
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -447,7 +633,7 @@ class _TodayEarningsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -460,9 +646,9 @@ class _TodayEarningsCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 4),
-                Text(
-                  'Rs. 4,850',
-                  style: TextStyle(
+        Text(
+  amount,
+  style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
@@ -470,7 +656,7 @@ class _TodayEarningsCard extends StatelessWidget {
                 ),
                 SizedBox(height: 3),
                 Text(
-                  '7 completed trips today',
+                completedTrips,
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -486,32 +672,40 @@ class _TodayEarningsCard extends StatelessWidget {
 }
 
 class _DriverStatsRow extends StatelessWidget {
-  const _DriverStatsRow();
+  final String rating;
+  final String trips;
+  final String onlineHours;
+
+  const _DriverStatsRow({
+    this.rating = '0.0',
+    this.trips = '0',
+    this.onlineHours = '0h',
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
+      children: [
         Expanded(
           child: _MiniStatCard(
             icon: Icons.star_rounded,
-            value: '4.9',
+            value: rating,
             label: 'Rating',
           ),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: _MiniStatCard(
             icon: Icons.route_rounded,
-            value: '128',
+            value: trips,
             label: 'Trips',
           ),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: _MiniStatCard(
             icon: Icons.schedule_rounded,
-            value: '6h',
+            value: onlineHours,
             label: 'Online',
           ),
         ),
@@ -519,7 +713,6 @@ class _DriverStatsRow extends StatelessWidget {
     );
   }
 }
-
 class _MiniStatCard extends StatelessWidget {
   final IconData icon;
   final String value;
@@ -934,35 +1127,179 @@ class _MapPinBubble extends StatelessWidget {
   }
 }
 
-class DriverRequestDetailScreen extends StatelessWidget {
-  const DriverRequestDetailScreen({super.key});
+class DriverRequestDetailScreen extends StatefulWidget {
+  final String hireRequestId;
 
+  const DriverRequestDetailScreen({
+    super.key,
+    required this.hireRequestId,
+  });
+
+  @override
+  State<DriverRequestDetailScreen> createState() =>
+      _DriverRequestDetailScreenState();
+}
+
+class _DriverRequestDetailScreenState extends State<DriverRequestDetailScreen> {
+  bool isLoading = true;
+  Map<String, dynamic>? review;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchReview();
+  }
+Future<void> _declineHireRequest() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Token not found. Please login again.');
+    }
+
+    final response = await http.post(
+      Uri.parse(
+        'https://hiredrive-fal0.onrender.com/api/driver-requests/${widget.hireRequestId}/decline',
+      ),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(data['message'] ?? 'Request declined successfully'),
+        ),
+      );
+
+      Navigator.pop(context);
+    } else {
+      throw Exception(data['message'] ?? 'Failed to decline request');
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
+}
+Future<void> _acceptHireRequest() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Token not found. Please login again.');
+    }
+
+    final response = await http.post(
+      Uri.parse(
+        'https://hiredrive-fal0.onrender.com/api/driver-requests/${widget.hireRequestId}/accept',
+      ),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(data['message'] ?? 'Request accepted successfully'),
+        ),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DriverNavigationScreen(
+  hireRequestId: widget.hireRequestId,
+),
+        ),
+      );
+    } else {
+      throw Exception(data['message'] ?? 'Failed to accept request');
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
+}
+  Future<void> _fetchReview() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Token not found. Please login again.');
+      }
+
+      final response = await http.get(
+        Uri.parse(
+          'https://hiredrive-fal0.onrender.com/api/driver-requests/${widget.hireRequestId}/review',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        setState(() {
+          review = Map<String, dynamic>.from(data['review']);
+          isLoading = false;
+        });
+      } else {
+        throw Exception(data['message'] ?? 'Failed to load request review');
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+    
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _header(context),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-                child: Column(
-                  children: [
-                    _passengerCard(context),
-                    const SizedBox(height: 16),
-                    _tripDetailCard(context),
-                    const SizedBox(height: 16),
-                    _fareCard(),
-                  ],
-                ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: Column(
+                children: [
+                  _header(context),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                      child: Column(
+                        children: [
+                          _passengerCard(context),
+                          const SizedBox(height: 16),
+                          _tripDetailCard(context),
+                          const SizedBox(height: 16),
+                          _fareCard(),
+                        ],
+                      ),
+                    ),
+                  ),
+                  _bottomButtons(context),
+                ],
               ),
             ),
-            _bottomButtons(context),
-          ],
-        ),
-      ),
     );
   }
 
@@ -993,6 +1330,8 @@ class DriverRequestDetailScreen extends StatelessWidget {
   }
 
   Widget _passengerCard(BuildContext context) {
+    final rider = review?['rider'];
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1002,12 +1341,12 @@ class DriverRequestDetailScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 26,
             backgroundColor: AppColors.primary,
             child: Text(
-              'F',
-              style: TextStyle(
+              rider?['avatarInitial'] ?? 'R',
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
@@ -1019,7 +1358,7 @@ class DriverRequestDetailScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Muhammad Fahad',
+                  rider?['name'] ?? 'Passenger',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 16,
@@ -1028,7 +1367,7 @@ class DriverRequestDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Hire Driver • One Way',
+                  review?['trip']?['serviceLabel'] ?? 'Hire Driver',
                   style: TextStyle(
                     color: AppColors.text2(context),
                     fontSize: 13,
@@ -1042,7 +1381,7 @@ class DriverRequestDetailScreen extends StatelessWidget {
               const Icon(Icons.star, color: Colors.orange, size: 18),
               const SizedBox(width: 4),
               Text(
-                "4.8",
+                "${rider?['rating'] ?? 0.0}",
                 style: TextStyle(color: AppColors.text1(context)),
               ),
             ],
@@ -1053,6 +1392,9 @@ class DriverRequestDetailScreen extends StatelessWidget {
   }
 
   Widget _tripDetailCard(BuildContext context) {
+    final trip = review?['trip'];
+    final vehicle = trip?['vehicle'];
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1062,28 +1404,37 @@ class DriverRequestDetailScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _row(context, Icons.location_on, "Pickup", "DHA Phase 5, Lahore"),
+          _row(context, Icons.location_on, "Pickup",
+              trip?['pickup']?['address'] ?? ''),
           const SizedBox(height: 10),
-          _row(context, Icons.flag, "Dropoff", "Gulberg Main Market, Lahore"),
+          _row(context, Icons.flag, "Dropoff",
+              trip?['dropoff']?['address'] ?? ''),
           Divider(height: 20, color: AppColors.secondary.withOpacity(0.45)),
-          _row(context, Icons.calendar_today, "Date", "12 May 2026"),
+          _row(context, Icons.calendar_today, "Date", trip?['date'] ?? ''),
           const SizedBox(height: 10),
-          _row(context, Icons.access_time, "Time", "10:30 AM"),
+          _row(context, Icons.access_time, "Time", trip?['time'] ?? ''),
           const SizedBox(height: 10),
           _row(
             context,
             Icons.directions_car,
             "Vehicle",
-            "Toyota Corolla • LEH-1234",
+            "${vehicle?['makeModel'] ?? ''} • ${vehicle?['plateNumber'] ?? ''}",
           ),
           const SizedBox(height: 10),
-          _row(context, Icons.route, "Distance", "12.4 km • 45 min"),
+          _row(
+            context,
+            Icons.route,
+            "Distance",
+            "${trip?['distanceKm'] ?? 0} km • ${trip?['durationMinutes'] ?? 0} min",
+          ),
         ],
       ),
     );
   }
 
   Widget _fareCard() {
+    final fare = review?['fare'];
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1092,16 +1443,16 @@ class DriverRequestDetailScreen extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Column(
+      child: Column(
         children: [
-          Text(
+          const Text(
             "Fare Offered",
             style: TextStyle(color: Colors.white70),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
-            "PKR 380",
-            style: TextStyle(
+            "${fare?['currency'] ?? 'PKR'} ${fare?['amount'] ?? 0}",
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 26,
               fontWeight: FontWeight.w900,
@@ -1120,15 +1471,13 @@ class DriverRequestDetailScreen extends StatelessWidget {
         children: [
           Expanded(
             child: OutlinedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Declined")),
-                );
-              },
+             onPressed: _declineHireRequest,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
                 foregroundColor: Colors.red,
-                side: BorderSide(color: AppColors.secondary.withOpacity(0.55)),
+                side: BorderSide(
+                  color: AppColors.secondary.withOpacity(0.55),
+                ),
               ),
               child: const Text("Decline"),
             ),
@@ -1136,14 +1485,7 @@ class DriverRequestDetailScreen extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const DriverNavigationScreen(),
-                  ),
-                );
-              },
+           onPressed: _acceptHireRequest,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 minimumSize: const Size.fromHeight(54),
@@ -1162,7 +1504,12 @@ class DriverRequestDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _row(BuildContext context, IconData icon, String title, String value) {
+  Widget _row(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String value,
+  ) {
     return Row(
       children: [
         Icon(icon, size: 18, color: AppColors.primary),
@@ -1180,10 +1527,82 @@ class DriverRequestDetailScreen extends StatelessWidget {
     );
   }
 }
+class DriverNavigationScreen extends StatefulWidget {
+  final String hireRequestId;
 
-class DriverNavigationScreen extends StatelessWidget {
-  const DriverNavigationScreen({super.key});
+  const DriverNavigationScreen({
+    super.key,
+    required this.hireRequestId,
+  });
 
+  @override
+  State<DriverNavigationScreen> createState() =>
+      _DriverNavigationScreenState();
+}
+
+class _DriverNavigationScreenState
+    extends State<DriverNavigationScreen> {
+bool isLoading = true;
+
+String etaMinutes = '0';
+String locationLabel = '';
+String tripMeta = '';
+String actionButton = 'Arrived at Pickup';
+@override
+void initState() {
+  super.initState();
+  _fetchNavigation();
+}
+
+Future<void> _fetchNavigation() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null || token.isEmpty) {
+      throw Exception('Token not found. Please login again.');
+    }
+
+    final response = await http.get(
+      Uri.parse(
+        'https://hiredrive-fal0.onrender.com/api/driver-requests/${widget.hireRequestId}/navigation',
+      ),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 &&
+        data['success'] == true) {
+      final nav = data['navigation']['navigation'];
+
+      setState(() {
+        etaMinutes = '${nav['etaMinutes'] ?? 0} mins';
+        locationLabel = nav['locationLabel'] ?? '';
+        tripMeta = nav['tripMeta'] ?? '';
+        actionButton =
+            nav['actionButton'] ?? 'Arrived at Pickup';
+
+        isLoading = false;
+      });
+    } else {
+      throw Exception(
+        data['message'] ?? 'Failed to load navigation',
+      );
+    }
+  } catch (e) {
+    setState(() {
+      isLoading = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(e.toString())),
+    );
+  }
+}
   void _openActiveRide(BuildContext context) {
     Navigator.push(
       context,
@@ -1210,7 +1629,9 @@ class DriverNavigationScreen extends StatelessWidget {
         ),
         iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
-      body: Column(
+      body: isLoading
+    ? const Center(child: CircularProgressIndicator())
+    : Column(
         children: [
           Expanded(
             child: Container(
@@ -1282,37 +1703,49 @@ class DriverNavigationScreen extends StatelessWidget {
             ),
             child: Column(
               children: [
-                const _DetailRow(
-                  icon: Icons.timer_rounded,
-                  title: 'ETA',
-                  value: '8 mins',
-                ),
+_DetailRow(
+  icon: Icons.timer_rounded,
+  title: 'ETA',
+  value: etaMinutes,
+),
                 const SizedBox(height: 12),
-                const _DetailRow(
-                  icon: Icons.my_location_rounded,
-                  title: 'Pickup',
-                  value: 'Johar Town, Lahore',
-                ),
+        _DetailRow(
+  icon: Icons.my_location_rounded,
+  title: 'Pickup',
+  value: locationLabel,
+),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    onPressed: () => _openActiveRide(context),
-                    child: const Text(
-                      'Arrived at Pickup',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
+         const SizedBox(height: 12),
+
+_DetailRow(
+  icon: Icons.route_rounded,
+  title: 'Trip',
+  value: tripMeta,
+),
+
+const SizedBox(height: 16),
+
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: AppColors.primary,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+    ),
+    onPressed: () => _openActiveRide(context),
+    child: Text(
+      actionButton,
+      style: const TextStyle(
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  ),
+),
               ],
             ),
           ),
@@ -1617,7 +2050,7 @@ class DriverEarningsScreen extends StatelessWidget {
         ),
         iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
-      body: SafeArea(
+body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),

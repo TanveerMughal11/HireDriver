@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hire_driver/view/profile/services/profile.dart';
 
-
 class ProfileDriverStatusProvider extends ChangeNotifier {
   bool isLoading = false;
+
+  String riderStatus = 'none';
   String driverStatus = 'none';
 
   Future<void> loadDriverApplicationStatus() async {
@@ -11,18 +12,23 @@ class ProfileDriverStatusProvider extends ChangeNotifier {
       isLoading = true;
       notifyListeners();
 
-      final res = await ProfileService.getMyApplication();
+      final riderRes = await ProfileService.getMyRiderApplication();
 
-      if (res['success'] == true && res['application'] != null) {
-        final application = res['application'];
+      if (riderRes['success'] == true && riderRes['alreadyApplied'] == true) {
+        riderStatus = riderRes['applicationStatus']?.toString() ?? 'none';
+      } else {
+        riderStatus = 'none';
+      }
 
-        driverStatus = application['status'] ?? 'none';
+      final driverRes = await ProfileService.getMyDriverVerification();
+
+      if (driverRes['success'] == true && driverRes['alreadyApplied'] == true) {
+        driverStatus = driverRes['applicationStatus']?.toString() ?? 'none';
       } else {
         driverStatus = 'none';
       }
     } catch (e) {
-      debugPrint('Driver status error: $e');
-      driverStatus = 'none';
+      debugPrint('Profile status error: $e');
     } finally {
       isLoading = false;
       notifyListeners();

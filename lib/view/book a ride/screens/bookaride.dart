@@ -4,7 +4,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/book a ride/provider/book_a_ride.dart';
 import 'package:hire_driver/view/book%20a%20ride/provider/set_price.dart';
@@ -34,8 +35,7 @@ class _BookRideScreenBody extends StatefulWidget {
 class _BookRideScreenBodyState extends State<_BookRideScreenBody> {
   static const String _googleApiKey =
       'AIzaSyAVwtrR0dOb-BqWXdqTrvixlYh-TTV5Sj4';
-
-  final Completer<GoogleMapController> _mapController = Completer();
+final MapController _mapController = MapController();
 
   final TextEditingController _destinationController = TextEditingController();
   final FocusNode _destinationFocusNode = FocusNode();
@@ -46,10 +46,226 @@ class _BookRideScreenBodyState extends State<_BookRideScreenBody> {
   bool _isSearchingPlaces = false;
   bool _isSearchMode = false;
   bool _isBottomSheetExpanded = false;
+List<LatLng> _routePoints = [];
+Future<void> _loadRoute({
+  required LatLng pickup,
+  required LatLng destination,
+}) async {
+  try {
+    final url = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/'
+      '${pickup.longitude},${pickup.latitude};'
+      '${destination.longitude},${destination.latitude}'
+      '?overview=full&geometries=geojson',
+    );
 
+    final response = await http.get(url);
+
+    if (response.statusCode != 200) return;
+
+    final data = jsonDecode(response.body);
+
+    final coordinates =
+        data['routes'][0]['geometry']['coordinates'] as List;
+
+    final points = coordinates.map<LatLng>((coord) {
+      return LatLng(
+        (coord[1] as num).toDouble(),
+        (coord[0] as num).toDouble(),
+      );
+    }).toList();
+
+    if (!mounted) return;
+
+    setState(() {
+      _routePoints = points;
+    });
+  } catch (_) {}
+}
   Timer? _debounce;
   List<_PlaceSuggestion> _suggestions = [];
+Future<void> _openMapPicker({required bool isPickup}) async {
+  final provider = context.read<BookRideProvider>();
 
+  LatLng selectedPoint = isPickup
+      ? provider.pickupLatLng
+      : provider.destinationLatLng ?? _mapCenter;
+
+  final pickerController = MapController();
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.bg(context),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (sheetContext) {
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          return SizedBox(
+            height: MediaQuery.of(context).size.height * 0.85,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          isPickup
+                              ? 'Select Pickup Location'
+                              : 'Select Destination Location',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.text1(context),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: AppColors.text1(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: FlutterMap(
+                    mapController: pickerController,
+                    options: MapOptions(
+                      initialCenter: selectedPoint,
+                      initialZoom: 15,
+                      onTap: (tapPosition, point) {
+                        setSheetState(() {
+                          selectedPoint = point;
+                        });
+                      },
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.hire_driver',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: selectedPoint,
+                            width: 50,
+                            height: 50,
+                            child: Icon(
+                              isPickup
+                                  ? Icons.my_location_rounded
+                                  : Icons.location_on_rounded,
+                              color: isPickup
+                                  ? AppColors.primary
+                                  : Colors.orange,
+                              size: 42,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      onPressed: () async {
+                        String address = isPickup
+                            ? 'Selected Pickup Location'
+                            : 'Selected Destination Location';
+
+                        try {
+                          final placemarks =
+                              await geo.placemarkFromCoordinates(
+                            selectedPoint.latitude,
+                            selectedPoint.longitude,
+                          );
+
+                          if (placemarks.isNotEmpty) {
+                            final p = placemarks.first;
+                            final parts = <String>[
+                              if ((p.name ?? '').trim().isNotEmpty)
+                                p.name!.trim(),
+                              if ((p.locality ?? '').trim().isNotEmpty)
+                                p.locality!.trim(),
+                              if ((p.administrativeArea ?? '')
+                                  .trim()
+                                  .isNotEmpty)
+                                p.administrativeArea!.trim(),
+                            ];
+
+                            if (parts.isNotEmpty) {
+                              address = parts.join(', ');
+                            }
+                          }
+                        } catch (_) {}
+
+                        if (!mounted) return;
+
+                        if (isPickup) {
+                          this.context.read<BookRideProvider>().setPickup(
+                                latLng: selectedPoint,
+                                address: address,
+                                placeId: 'map_pickup',
+                              );
+                        } else {
+                          this.context
+                              .read<BookRideProvider>()
+                              .setDestination(
+                                latLng: selectedPoint,
+                                address: address,
+                                placeId: 'map_destination',
+                              );
+await _loadRoute(
+  pickup: this.context.read<BookRideProvider>().pickupLatLng,
+  destination: selectedPoint,
+);
+                          _destinationController.text = address;
+                        }
+
+                        setState(() {
+                          _mapCenter = selectedPoint;
+                        });
+
+                        await _animateToLocation(selectedPoint);
+
+                        if (!mounted) return;
+                        Navigator.pop(sheetContext);
+                      },
+                      child: const Text(
+                        'Save Location',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
   final List<_VehicleItem> vehicles = const [
     _VehicleItem(
       type: 'bike',
@@ -136,11 +352,8 @@ class _BookRideScreenBodyState extends State<_BookRideScreenBody> {
                     mapCenter: _mapCenter,
                     pickupLatLng: provider.pickupLatLng,
                     destinationLatLng: provider.destinationLatLng,
-                    onMapCreated: (controller) {
-                      if (!_mapController.isCompleted) {
-                        _mapController.complete(controller);
-                      }
-                    },
+               mapController: _mapController,
+routePoints: _routePoints,
                   ),
                 ),
               Positioned(
@@ -148,12 +361,14 @@ class _BookRideScreenBodyState extends State<_BookRideScreenBody> {
                 right: 14,
                 top: 20,
                 child: _LocationCard(
-                  pickupText: provider.pickupText,
-                  destinationText: provider.destinationText,
-                  isGettingCurrentLocation: _isGettingCurrentLocation,
-                  onPickupTap: _useCurrentLocation,
-                  onDestinationTap: _openSearch,
-                ),
+  pickupText: provider.pickupText,
+  destinationText: provider.destinationText,
+  isGettingCurrentLocation: _isGettingCurrentLocation,
+  onPickupTap: _useCurrentLocation,
+  onDestinationTap: _openSearch,
+  onPickupMapTap: () => _openMapPicker(isPickup: true),
+  onDestinationMapTap: () => _openMapPicker(isPickup: false),
+),
               ),
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 350),
@@ -268,15 +483,9 @@ class _BookRideScreenBodyState extends State<_BookRideScreenBody> {
     );
   }
 
-  Future<void> _animateToLocation(LatLng target) async {
-    if (!_mapController.isCompleted) return;
-    final controller = await _mapController.future;
-    await controller.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: target, zoom: 15.5),
-      ),
-    );
-  }
+ Future<void> _animateToLocation(LatLng target) async {
+  _mapController.move(target, 15.5);
+}
 
   void _openSearch() {
     setState(() {
@@ -392,146 +601,89 @@ class _BookRideScreenBodyState extends State<_BookRideScreenBody> {
     });
   }
 
-  Future<void> _fetchPlaceSuggestions(String input) async {
-    setState(() {
-      _isSearchingPlaces = true;
-    });
+Future<void> _fetchPlaceSuggestions(String input) async {
+  setState(() {
+    _isSearchingPlaces = true;
+  });
 
-    try {
-      final response = await http.post(
-        Uri.parse('https://places.googleapis.com/v1/places:autocomplete'),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': _googleApiKey,
-          'X-Goog-FieldMask':
-              'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.structuredFormat.mainText.text,suggestions.placePrediction.structuredFormat.secondaryText.text',
-        },
-        body: jsonEncode({
-          'input': input,
-          'languageCode': 'en',
-          'regionCode': 'PK',
-        }),
+  try {
+    final url = Uri.parse(
+      'https://nominatim.openstreetmap.org/search'
+      '?q=$input'
+      '&format=json'
+      '&addressdetails=1'
+      '&limit=5'
+      '&countrycodes=pk',
+    );
+
+    final response = await http.get(
+      url,
+      headers: {
+        'User-Agent': 'hire_driver_flutter_app',
+      },
+    );
+
+    final List data = jsonDecode(response.body);
+
+    final results = data.map<_PlaceSuggestion>((item) {
+      return _PlaceSuggestion(
+        placeId: '',
+        title: item['display_name'] ?? '',
+        subtitle: '',
+        lat: double.tryParse(item['lat']),
+        lng: double.tryParse(item['lon']),
       );
+    }).toList();
 
-      if (response.statusCode != 200) {
-        if (!mounted) return;
-        setState(() {
-          _suggestions = [];
-          _isSearchingPlaces = false;
-        });
-        _showMessage('Place suggestions not loading. Enable Places API.');
-        return;
-      }
+    if (!mounted) return;
 
-      final Map<String, dynamic> data = jsonDecode(response.body);
-      final List rawSuggestions = data['suggestions'] ?? [];
-
-      final results = rawSuggestions
-          .map<_PlaceSuggestion?>((item) {
-            final placePrediction = item['placePrediction'];
-            if (placePrediction == null) return null;
-
-            final placeId = placePrediction['placeId']?.toString() ?? '';
-            final mainText =
-                placePrediction['structuredFormat']?['mainText']?['text']
-                        ?.toString() ??
-                    placePrediction['text']?['text']?.toString() ??
-                    '';
-            final secondaryText =
-                placePrediction['structuredFormat']?['secondaryText']?['text']
-                        ?.toString() ??
-                    '';
-
-            if (mainText.isEmpty) return null;
-
-            return _PlaceSuggestion(
-              placeId: placeId,
-              title: mainText,
-              subtitle: secondaryText,
-            );
-          })
-          .whereType<_PlaceSuggestion>()
-          .toList();
-
-      if (!mounted) return;
-
-      setState(() {
-        _suggestions = results;
-        _isSearchingPlaces = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _suggestions = [];
-        _isSearchingPlaces = false;
-      });
-    }
-  }
-
-  Future<void> _selectSuggestion(_PlaceSuggestion suggestion) async {
-    _destinationController.text = suggestion.fullText;
+    setState(() {
+      _suggestions = results;
+      _isSearchingPlaces = false;
+    });
+  } catch (_) {
+    if (!mounted) return;
 
     setState(() {
       _suggestions = [];
       _isSearchingPlaces = false;
-      _isSearchMode = false;
     });
+  }
+}
 
-    _destinationFocusNode.unfocus();
-
-    try {
-      final response = await http.get(
-        Uri.parse(
-          'https://places.googleapis.com/v1/places/${suggestion.placeId}'
-          '?fields=id,displayName,formattedAddress,location',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': _googleApiKey,
-        },
-      );
-
-      if (response.statusCode != 200) {
-        _showMessage('Place details not loading. Enable Places API.');
-        return;
-      }
-
-      final data = jsonDecode(response.body);
-      final location = data['location'];
-
-      if (location == null ||
-          location['latitude'] == null ||
-          location['longitude'] == null) {
-        _showMessage('Could not get place location.');
-        return;
-      }
-
-      final selectedLatLng = LatLng(
-        (location['latitude'] as num).toDouble(),
-        (location['longitude'] as num).toDouble(),
-      );
-
-      final destinationAddress =
-          data['formattedAddress']?.toString() ?? suggestion.fullText;
-
-      if (!mounted) return;
-
- context.read<BookRideProvider>().setDestination(
-            latLng: selectedLatLng,
-            address: destinationAddress,
-            placeId: suggestion.placeId,
-          );
-
-      setState(() {
-        _mapCenter = selectedLatLng;
-      });
-
-      await _animateToLocation(selectedLatLng);
-    } catch (e) {
-      _showMessage('Could not find this location on map.');
-    }
+Future<void> _selectSuggestion(_PlaceSuggestion suggestion) async {
+  if (suggestion.lat == null || suggestion.lng == null) {
+    _showMessage('Location not found.');
+    return;
   }
 
+  final selectedLatLng = LatLng(
+    suggestion.lat!,
+    suggestion.lng!,
+  );
+
+  _destinationController.text = suggestion.fullText;
+
+  context.read<BookRideProvider>().setDestination(
+        latLng: selectedLatLng,
+        address: suggestion.fullText,
+        placeId: 'osm',
+      );
+
+  setState(() {
+    _mapCenter = selectedLatLng;
+    _isSearchMode = false;
+    _suggestions = [];
+  });
+
+  await _animateToLocation(selectedLatLng);
+  final provider = context.read<BookRideProvider>();
+
+await _loadRoute(
+  pickup: provider.pickupLatLng,
+  destination: selectedLatLng,
+);
+}
   void _openManualLocationDialog() {
     final addressController = TextEditingController();
     final latController = TextEditingController();
@@ -895,51 +1047,69 @@ class _RideMapPreview extends StatelessWidget {
   final LatLng mapCenter;
   final LatLng pickupLatLng;
   final LatLng? destinationLatLng;
-  final ValueChanged<GoogleMapController> onMapCreated;
+  final MapController mapController;
+  final List<LatLng> routePoints;
 
   const _RideMapPreview({
     required this.mapCenter,
     required this.pickupLatLng,
     required this.destinationLatLng,
-    required this.onMapCreated,
+    required this.mapController,
+    required this.routePoints,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(0),
-      child: GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: mapCenter,
-          zoom: 14.8,
+    return FlutterMap(
+      mapController: mapController,
+      options: MapOptions(
+        initialCenter: mapCenter,
+        initialZoom: 14.8,
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.example.hire_driver',
         ),
-        onMapCreated: onMapCreated,
-        markers: {
-          Marker(
-            markerId: const MarkerId('pickup'),
-            position: pickupLatLng,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueViolet,
-            ),
+
+        if (routePoints.isNotEmpty)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: routePoints,
+                strokeWidth: 5,
+                color: AppColors.primary,
+              ),
+            ],
           ),
-          if (destinationLatLng != null)
+
+        MarkerLayer(
+          markers: [
             Marker(
-              markerId: const MarkerId('dropoff'),
-              position: destinationLatLng!,
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueOrange,
+              point: pickupLatLng,
+              width: 50,
+              height: 50,
+              child: const Icon(
+                Icons.my_location,
+                color: AppColors.primary,
+                size: 35,
               ),
             ),
-        },
-        zoomControlsEnabled: false,
-        myLocationButtonEnabled: false,
-        myLocationEnabled: true,
-        mapToolbarEnabled: false,
-        compassEnabled: false,
-        tiltGesturesEnabled: false,
-        rotateGesturesEnabled: false,
-        indoorViewEnabled: false,
-      ),
+
+            if (destinationLatLng != null)
+              Marker(
+                point: destinationLatLng!,
+                width: 50,
+                height: 50,
+                child: const Icon(
+                  Icons.location_on,
+                  color: Colors.orange,
+                  size: 40,
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -950,6 +1120,8 @@ class _LocationCard extends StatelessWidget {
   final bool isGettingCurrentLocation;
   final VoidCallback onPickupTap;
   final VoidCallback onDestinationTap;
+  final VoidCallback onPickupMapTap;
+  final VoidCallback onDestinationMapTap;
 
   const _LocationCard({
     required this.pickupText,
@@ -957,6 +1129,8 @@ class _LocationCard extends StatelessWidget {
     required this.isGettingCurrentLocation,
     required this.onPickupTap,
     required this.onDestinationTap,
+    required this.onPickupMapTap,
+    required this.onDestinationMapTap,
   });
 
   @override
@@ -1051,25 +1225,20 @@ class _LocationCard extends StatelessWidget {
           Column(
             children: [
               GestureDetector(
-                onTap: onDestinationTap,
+                onTap: onPickupMapTap,
                 child: const Icon(
-                  Icons.location_on_rounded,
-                  color: Color(0xFFE64980),
-                  size: 18,
+                  Icons.map_rounded,
+                  color: AppColors.primary,
+                  size: 22,
                 ),
               ),
-              const SizedBox(height: 12),
-              Container(
-                height: 34,
-                width: 34,
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
+              const SizedBox(height: 28),
+              GestureDetector(
+                onTap: onDestinationMapTap,
                 child: const Icon(
-                  Icons.compare_arrows_rounded,
-                  color: Colors.white,
-                  size: 18,
+                  Icons.map_rounded,
+                  color: Color(0xFFE64980),
+                  size: 22,
                 ),
               ),
             ],
@@ -1320,11 +1489,15 @@ class _PlaceSuggestion {
   final String placeId;
   final String title;
   final String subtitle;
+  final double? lat;
+  final double? lng;
 
   const _PlaceSuggestion({
     required this.placeId,
     required this.title,
     required this.subtitle,
+    this.lat,
+    this.lng,
   });
 
   String get fullText {

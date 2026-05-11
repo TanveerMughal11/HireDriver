@@ -3,6 +3,13 @@ import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/hiredriver/provider/roundtrip.dart';
 import 'package:hire_driver/view/hiredriver/screens/avaibledrivers.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geocoding/geocoding.dart' as geo;
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
 
 class RoundTripScreen extends StatefulWidget {
   final Map<String, dynamic> serviceOption;
@@ -27,17 +34,327 @@ class _RoundTripScreenState extends State<RoundTripScreen> {
   TimeOfDay? departureTime;
   DateTime? returnDate;
   TimeOfDay? returnTime;
+LatLng pickupLatLng = const LatLng(31.5204, 74.3587);
+LatLng dropoffLatLng = const LatLng(31.5204, 74.3587);
 
+Timer? _searchDebounce;
+bool _isSearchingPlaces = false;
+bool _isPickupSearching = true;
+List<_PlaceSuggestion> _placeSuggestions = [];
   @override
   void dispose() {
     pickupController.dispose();
+    _searchDebounce?.cancel();
     dropoffController.dispose();
     vehicleModelController.dispose();
     vehicleColorController.dispose();
     vehiclePlateController.dispose();
     super.dispose();
   }
+void _onLocationTextChanged({
+  required String value,
+  required bool isPickup,
+}) {
+  _searchDebounce?.cancel();
 
+  if (value.trim().isEmpty) {
+    setState(() {
+      _placeSuggestions = [];
+      _isSearchingPlaces = false;
+    });
+    return;
+  }
+
+  setState(() {
+    _isPickupSearching = isPickup;
+  });
+
+  _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+    _fetchPlaceSuggestions(value.trim());
+  });
+}
+
+Future<void> _fetchPlaceSuggestions(String input) async {
+  setState(() {
+    _isSearchingPlaces = true;
+  });
+
+  try {
+    final url = Uri.parse(
+      'https://nominatim.openstreetmap.org/search'
+      '?q=$input'
+      '&format=json'
+      '&addressdetails=1'
+      '&limit=5'
+      '&countrycodes=pk',
+    );
+
+    final response = await http.get(
+      url,
+      headers: {'User-Agent': 'hire_driver_flutter_app'},
+    );
+
+    if (response.statusCode != 200) {
+      if (!mounted) return;
+      setState(() {
+        _placeSuggestions = [];
+        _isSearchingPlaces = false;
+      });
+      return;
+    }
+
+    final List data = jsonDecode(response.body);
+
+    final results = data.map<_PlaceSuggestion>((item) {
+      return _PlaceSuggestion(
+        title: item['display_name']?.toString() ?? '',
+        lat: double.tryParse(item['lat'].toString()),
+        lng: double.tryParse(item['lon'].toString()),
+      );
+    }).where((e) {
+      return e.title.isNotEmpty && e.lat != null && e.lng != null;
+    }).toList();
+
+    if (!mounted) return;
+
+    setState(() {
+      _placeSuggestions = results;
+      _isSearchingPlaces = false;
+    });
+  } catch (_) {
+    if (!mounted) return;
+    setState(() {
+      _placeSuggestions = [];
+      _isSearchingPlaces = false;
+    });
+  }
+}
+
+void _selectPlaceSuggestion(_PlaceSuggestion suggestion) {
+  if (suggestion.lat == null || suggestion.lng == null) return;
+
+  final point = LatLng(suggestion.lat!, suggestion.lng!);
+
+  setState(() {
+    if (_isPickupSearching) {
+      pickupLatLng = point;
+      pickupController.text = suggestion.title;
+    } else {
+      dropoffLatLng = point;
+      dropoffController.text = suggestion.title;
+    }
+
+    _placeSuggestions = [];
+    _isSearchingPlaces = false;
+  });
+
+  FocusScope.of(context).unfocus();
+}
+
+Future<String> _getAddressFromLatLng(LatLng point) async {
+  try {
+    final placemarks = await geo.placemarkFromCoordinates(
+      point.latitude,
+      point.longitude,
+    );
+
+    if (placemarks.isNotEmpty) {
+      final p = placemarks.first;
+      final parts = <String>[
+        if ((p.name ?? '').trim().isNotEmpty) p.name!.trim(),
+        if ((p.locality ?? '').trim().isNotEmpty) p.locality!.trim(),
+        if ((p.administrativeArea ?? '').trim().isNotEmpty)
+          p.administrativeArea!.trim(),
+        if ((p.country ?? '').trim().isNotEmpty) p.country!.trim(),
+      ];
+
+      if (parts.isNotEmpty) return parts.join(', ');
+    }
+  } catch (_) {}
+
+  return '${point.latitude.toStringAsFixed(6)}, ${point.longitude.toStringAsFixed(6)}';
+}
+
+Future<LatLng?> _getCurrentLatLng() async {
+  final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+  if (!serviceEnabled) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please enable location services')),
+    );
+    return null;
+  }
+
+  var permission = await Geolocator.checkPermission();
+
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+  }
+
+  if (permission == LocationPermission.denied ||
+      permission == LocationPermission.deniedForever) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Location permission is required')),
+    );
+    return null;
+  }
+
+  final position = await Geolocator.getCurrentPosition(
+    desiredAccuracy: LocationAccuracy.high,
+  );
+
+  return LatLng(position.latitude, position.longitude);
+}
+
+Future<void> _useCurrentLocationForPickup() async {
+  final point = await _getCurrentLatLng();
+  if (point == null) return;
+
+  final address = await _getAddressFromLatLng(point);
+
+  if (!mounted) return;
+
+  setState(() {
+    pickupLatLng = point;
+    pickupController.text = address;
+  });
+}
+
+Future<void> _openMapPicker({required bool isPickup}) async {
+  LatLng selectedPoint = isPickup ? pickupLatLng : dropoffLatLng;
+
+  final currentPoint = await _getCurrentLatLng();
+  if (currentPoint != null) selectedPoint = currentPoint;
+
+  if (!mounted) return;
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.bg(context),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (sheetContext) {
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          return SizedBox(
+            height: MediaQuery.of(context).size.height * 0.85,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          isPickup
+                              ? 'Select Pickup Location'
+                              : 'Select Drop-off Location',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.text1(context),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: AppColors.text1(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: FlutterMap(
+                    options: MapOptions(
+                      initialCenter: selectedPoint,
+                      initialZoom: 15.5,
+                      onTap: (tapPosition, point) {
+                        setSheetState(() {
+                          selectedPoint = point;
+                        });
+                      },
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.hire_driver',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: selectedPoint,
+                            width: 70,
+                            height: 70,
+                            child: _GlowMapMarker(
+                              color: isPickup
+                                  ? AppColors.primary
+                                  : const Color(0xFFFF7A30),
+                              icon: isPickup
+                                  ? Icons.my_location_rounded
+                                  : Icons.place_rounded,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      onPressed: () async {
+                        final address =
+                            await _getAddressFromLatLng(selectedPoint);
+
+                        if (!mounted) return;
+
+                        setState(() {
+                          if (isPickup) {
+                            pickupLatLng = selectedPoint;
+                            pickupController.text = address;
+                          } else {
+                            dropoffLatLng = selectedPoint;
+                            dropoffController.text = address;
+                          }
+                        });
+
+                        Navigator.pop(sheetContext);
+                      },
+                      child: Text(
+                        'Save Location',
+                        style: TextStyle(
+                          color: AppColors.card(context),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
 Future<void> _createHireRequest(RoundTripProvider provider) async {
   if (departureDate == null || departureTime == null) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -490,41 +807,113 @@ return ChangeNotifierProvider(
     );
   }
 
-  Widget _buildLocationCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card(context).withOpacity(0.9),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: AppColors.secondary.withOpacity(0.7),
-        ),
-      ),
-      child: Column(
-        children: [
-          _LocationRow(
-            label: 'PICKUP',
-            controller: pickupController,
-            dotColor: AppColors.primary,
-            hintText: 'Select pickup location',
-            icon: Icons.my_location_rounded,
-            onMapTap: () {},
-          ),
-          Divider(
-            height: 1,
+Widget _buildLocationCard() {
+  return Column(
+    children: [
+      Container(
+        decoration: BoxDecoration(
+          color: AppColors.card(context).withOpacity(0.9),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
             color: AppColors.secondary.withOpacity(0.7),
           ),
-          _LocationRow(
-            label: 'DROP-OFF',
-            controller: dropoffController,
-            dotColor: const Color(0xFFFF7A30),
-            hintText: 'Enter destination...',
-            icon: Icons.place_rounded,
-            onMapTap: () {},
-          ),
-        ],
+        ),
+        child: Column(
+          children: [
+            _LocationRow(
+              label: 'PICKUP',
+              controller: pickupController,
+              dotColor: AppColors.primary,
+              hintText: 'Select pickup location',
+              icon: Icons.my_location_rounded,
+              onCurrentTap: _useCurrentLocationForPickup,
+              onMapTap: () => _openMapPicker(isPickup: true),
+              onChanged: (value) => _onLocationTextChanged(
+                value: value,
+                isPickup: true,
+              ),
+            ),
+            Divider(
+              height: 1,
+              color: AppColors.secondary.withOpacity(0.7),
+            ),
+            _LocationRow(
+              label: 'DROP-OFF',
+              controller: dropoffController,
+              dotColor: const Color(0xFFFF7A30),
+              hintText: 'Enter destination...',
+              icon: Icons.place_rounded,
+              onCurrentTap: null,
+              onMapTap: () => _openMapPicker(isPickup: false),
+              onChanged: (value) => _onLocationTextChanged(
+                value: value,
+                isPickup: false,
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
+      if (_isSearchingPlaces)
+        const Padding(
+          padding: EdgeInsets.only(top: 10),
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.primary,
+          ),
+        ),
+      if (_placeSuggestions.isNotEmpty)
+        Container(
+          margin: const EdgeInsets.only(top: 10),
+          decoration: BoxDecoration(
+            color: AppColors.card(context),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: AppColors.secondary.withOpacity(0.6),
+            ),
+          ),
+          child: Column(
+            children: List.generate(_placeSuggestions.length, (index) {
+              final item = _placeSuggestions[index];
+
+              return InkWell(
+                onTap: () => _selectPlaceSuggestion(item),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_rounded,
+                        color: _isPickupSearching
+                            ? AppColors.primary
+                            : const Color(0xFFFF7A30),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          item.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.text1(context),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+    ],
+  );
+}
 
   Widget _buildSectionLabel(String title) {
     return Text(
@@ -545,7 +934,9 @@ class _LocationRow extends StatelessWidget {
   final Color dotColor;
   final String hintText;
   final IconData icon;
+  final VoidCallback? onCurrentTap;
   final VoidCallback onMapTap;
+  final ValueChanged<String> onChanged;
 
   const _LocationRow({
     required this.label,
@@ -553,7 +944,9 @@ class _LocationRow extends StatelessWidget {
     required this.dotColor,
     required this.hintText,
     required this.icon,
+    required this.onCurrentTap,
     required this.onMapTap,
+    required this.onChanged,
   });
 
   @override
@@ -591,6 +984,7 @@ class _LocationRow extends StatelessWidget {
                 const SizedBox(height: 6),
                 TextField(
                   controller: controller,
+                  onChanged: onChanged,
                   decoration: InputDecoration(
                     hintText: hintText,
                     hintStyle: TextStyle(
@@ -611,6 +1005,26 @@ class _LocationRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          if (onCurrentTap != null) ...[
+            InkWell(
+              onTap: onCurrentTap,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                height: 40,
+                width: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.softBg(context),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.gps_fixed_rounded,
+                  color: dotColor,
+                  size: 20,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           InkWell(
             onTap: onMapTap,
             borderRadius: BorderRadius.circular(12),
@@ -744,4 +1158,81 @@ class _InputField extends StatelessWidget {
       ),
     );
   }
+}
+class _GlowMapMarker extends StatefulWidget {
+  final Color color;
+  final IconData icon;
+
+  const _GlowMapMarker({
+    required this.color,
+    required this.icon,
+  });
+
+  @override
+  State<_GlowMapMarker> createState() => _GlowMapMarkerState();
+}
+
+class _GlowMapMarkerState extends State<_GlowMapMarker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller;
+  late final Animation<double> animation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+
+    animation = Tween<double>(begin: 0.92, end: 1.08).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: animation,
+      child: Container(
+        height: 52,
+        width: 52,
+        decoration: BoxDecoration(
+          color: widget.color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withOpacity(0.35),
+              blurRadius: 18,
+              spreadRadius: 6,
+            ),
+          ],
+        ),
+        child: Icon(
+          widget.icon,
+          color: Colors.white,
+          size: 27,
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaceSuggestion {
+  final String title;
+  final double? lat;
+  final double? lng;
+
+  const _PlaceSuggestion({
+    required this.title,
+    this.lat,
+    this.lng,
+  });
 }
