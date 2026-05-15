@@ -149,6 +149,34 @@ if (result['success'] == true) {
                       onTap: verifyOtpCode,
                     ),
               const SizedBox(height: 20),
+              SizedBox(
+  width: double.infinity,
+  child: OutlinedButton(
+    style: OutlinedButton.styleFrom(
+      side: const BorderSide(
+        color: AppColors.primary,
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+    ),
+    onPressed: () {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('OTP resent successfully'),
+        ),
+      );
+    },
+    child: const Text(
+      "Resend OTP",
+      style: TextStyle(
+        color: AppColors.primary,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  ),
+),
             ],
           ),
         ),

@@ -607,21 +607,23 @@ Future<void> _fetchPlaceSuggestions(String input) async {
   });
 
   try {
-    final url = Uri.parse(
-      'https://nominatim.openstreetmap.org/search'
-      '?q=$input'
-      '&format=json'
-      '&addressdetails=1'
-      '&limit=5'
-      '&countrycodes=pk',
-    );
+ final url = Uri.parse(
+  'https://nominatim.openstreetmap.org/search'
+  '?q=$input'
+  '&format=json'
+  '&addressdetails=1'
+  '&limit=5'
+  '&countrycodes=pk'
+  '&accept-language=en',
+);
 
-    final response = await http.get(
-      url,
-      headers: {
-        'User-Agent': 'hire_driver_flutter_app',
-      },
-    );
+final response = await http.get(
+  url,
+  headers: {
+    'User-Agent': 'hire_driver_flutter_app',
+    'Accept-Language': 'en',
+  },
+);
 
     final List data = jsonDecode(response.body);
 

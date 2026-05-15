@@ -41,9 +41,9 @@ class _SignupScreenState extends State<SignupScreen> {
         email.isEmpty ||
         phone.isEmpty ||
         password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all fields")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please fill all fields")));
       return;
     }
 
@@ -66,23 +66,54 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     if (result['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Signup successful")),
-      );
+      await _showSignupSuccessDialog();
+
+      if (!mounted) return;
 
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => OtpScreen(email: email),
-        ),
+        MaterialPageRoute(builder: (_) => OtpScreen(email: email)),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Signup failed'),
-        ),
+        SnackBar(content: Text(result['message'] ?? 'Signup failed')),
       );
     }
+  }
+
+  Future<void> _showSignupSuccessDialog() {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppColors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            "Signup successful",
+            style: AppTextStyles.introTitle.copyWith(fontSize: 22),
+          ),
+          content: Text(
+            "Your account has been created. Continue to verify your OTP.",
+            style: AppTextStyles.introDescription,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text(
+                "OK",
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -122,12 +153,12 @@ class _SignupScreenState extends State<SignupScreen> {
                     const SizedBox(height: 12),
                     _field("Phone Number", phoneController),
                     const SizedBox(height: 12),
-                  _field(
-  "Password",
-  passwordController,
-  obscure: !showPassword,
-  isPassword: true,
-),
+                    _field(
+                      "Password",
+                      passwordController,
+                      obscure: !showPassword,
+                      isPassword: true,
+                    ),
                     const SizedBox(height: 16),
                     Row(
                       children: [
@@ -190,51 +221,51 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-Widget _field(
-  String hint,
-  TextEditingController controller, {
-  bool obscure = false,
-  bool isPassword = false,
-}) {
-  return TextField(
-    controller: controller,
-    obscureText: obscure,
-    style: AppTextStyles.introDescription.copyWith(
-      color: AppColors.textPrimary,
-    ),
-    decoration: InputDecoration(
-      hintText: hint,
-      hintStyle: AppTextStyles.introDescription.copyWith(
-        color: AppColors.textSecondary.withOpacity(0.5),
+  Widget _field(
+    String hint,
+    TextEditingController controller, {
+    bool obscure = false,
+    bool isPassword = false,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      style: AppTextStyles.introDescription.copyWith(
+        color: AppColors.textPrimary,
       ),
-      filled: true,
-      fillColor: AppColors.light.withOpacity(0.5),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: AppTextStyles.introDescription.copyWith(
+          color: AppColors.textSecondary.withOpacity(0.5),
+        ),
+        filled: true,
+        fillColor: AppColors.light.withOpacity(0.5),
 
-      /// ❌ REMOVE THIS
-      // prefixIcon: ...
+        /// ❌ REMOVE THIS
+        // prefixIcon: ...
 
-      /// ✅ ADD THIS (RIGHT SIDE)
-      suffixIcon: isPassword
-          ? IconButton(
-              icon: Icon(
-                obscure ? Icons.visibility_off : Icons.visibility,
-                color: AppColors.primary,
-              ),
-              onPressed: () {
-                setState(() {
-                  showPassword = !showPassword;
-                });
-              },
-            )
-          : null,
+        /// ✅ ADD THIS (RIGHT SIDE)
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  obscure ? Icons.visibility_off : Icons.visibility,
+                  color: AppColors.primary,
+                ),
+                onPressed: () {
+                  setState(() {
+                    showPassword = !showPassword;
+                  });
+                },
+              )
+            : null,
 
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _genderBtn(String text) {
     bool isSelected = selectedGender == text;
@@ -258,9 +289,7 @@ Widget _field(
             child: Text(
               text,
               style: AppTextStyles.chipText(
-                isSelected
-                    ? AppColors.primary
-                    : AppColors.textSecondary,
+                isSelected ? AppColors.primary : AppColors.textSecondary,
               ),
             ),
           ),

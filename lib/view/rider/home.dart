@@ -1419,14 +1419,14 @@ onPressed: (review?['actions']?['canAccept'] == true)
 
 
 class DriverNavigationScreen extends StatefulWidget {
-final String? rideRequestId;
-final Map<String, dynamic>? navigationData;
+  final String? rideRequestId;
+  final Map<String, dynamic>? navigationData;
 
-const DriverNavigationScreen({
-  super.key,
-  this.rideRequestId,
-  this.navigationData,
-});
+  const DriverNavigationScreen({
+    super.key,
+    this.rideRequestId,
+    this.navigationData,
+  });
 
   @override
   State<DriverNavigationScreen> createState() => _DriverNavigationScreenState();
@@ -1436,73 +1436,115 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   final MapController mapController = MapController();
 
   StreamSubscription<Position>? positionStream;
+
   LatLng? driverPoint;
   LatLng? pickupPoint;
+  LatLng? dropoffPoint;
+
   List<LatLng> routePoints = [];
-Map<String, dynamic>? apiNavigationData;
-bool isNavigationLoading = false;
+  List<LatLng> destinationRoutePoints = [];
+
+  Map<String, dynamic>? apiNavigationData;
+
+  bool isNavigationLoading = false;
   bool isRouteLoading = true;
-Future<void> _loadNavigation() async {
-  try {
-    setState(() {
-      isNavigationLoading = true;
-    });
 
-    final data = await RiderRequestsApi.getRideNavigation(
-      rideRequestId: widget.rideRequestId!,
-    );
+  String dropoffAddress = '';
 
-    apiNavigationData = data['navigation'];
+  @override
+  void initState() {
+    super.initState();
 
-    setState(() {
-      isNavigationLoading = false;
-    });
+    if (widget.navigationData != null) {
+      apiNavigationData = widget.navigationData;
+      _setPickupLocation();
+      _startLiveLocation();
+    } else if (widget.rideRequestId != null &&
+        widget.rideRequestId!.isNotEmpty) {
+      _loadNavigation();
+    } else {
+      _setPickupLocation();
+      _startLiveLocation();
+    }
+  }
 
-    _setPickupLocation();
-    _startLiveLocation();
-  } catch (e) {
-    setState(() {
-      isNavigationLoading = false;
-    });
+  Future<void> _loadNavigation() async {
+    try {
+      setState(() {
+        isNavigationLoading = true;
+      });
 
-    if (!mounted) return;
+      final data = await RiderRequestsApi.getRideNavigation(
+        rideRequestId: widget.rideRequestId!,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          e.toString().replaceAll('Exception: ', ''),
+      apiNavigationData = data['navigation'];
+
+      setState(() {
+        isNavigationLoading = false;
+      });
+
+      _setPickupLocation();
+      _startLiveLocation();
+    } catch (e) {
+      setState(() {
+        isNavigationLoading = false;
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
-}
-@override
-void initState() {
-  super.initState();
-
-  if (widget.navigationData != null) {
-    apiNavigationData = widget.navigationData;
-    _setPickupLocation();
-    _startLiveLocation();
-  } else if (widget.rideRequestId != null &&
-      widget.rideRequestId!.isNotEmpty) {
-    _loadNavigation();
-  } else {
-    _setPickupLocation();
-    _startLiveLocation();
-  }
-}
 
   void _setPickupLocation() {
-final pickup = apiNavigationData?['map']?['pickupMarker'];
-    final coordinates = pickup?['coordinates'];
+    final trip = apiNavigationData?['trip'];
+
+    final pickup = trip?['pickup'];
+    final dropoff = trip?['dropoff'];
+
+    final pickupCoordinates = pickup?['coordinates'];
+    final dropoffCoordinates = dropoff?['coordinates'];
 
     final pickupLat =
-        (coordinates?['lat'] as num?)?.toDouble() ?? 31.4719997;
+        (pickupCoordinates?['lat'] as num?)?.toDouble() ??
+        (pickup?['lat'] as num?)?.toDouble() ??
+        (pickup?['latitude'] as num?)?.toDouble() ??
+        31.4719997;
+
     final pickupLng =
-        (coordinates?['lng'] as num?)?.toDouble() ?? 74.36066;
+        (pickupCoordinates?['lng'] as num?)?.toDouble() ??
+        (pickupCoordinates?['lon'] as num?)?.toDouble() ??
+        (pickupCoordinates?['longitude'] as num?)?.toDouble() ??
+        (pickup?['lng'] as num?)?.toDouble() ??
+        (pickup?['lon'] as num?)?.toDouble() ??
+        (pickup?['longitude'] as num?)?.toDouble() ??
+        74.36066;
+
+    final dropLat =
+        (dropoffCoordinates?['lat'] as num?)?.toDouble() ??
+        (dropoff?['lat'] as num?)?.toDouble() ??
+        (dropoff?['latitude'] as num?)?.toDouble() ??
+        31.5100;
+
+    final dropLng =
+        (dropoffCoordinates?['lng'] as num?)?.toDouble() ??
+        (dropoffCoordinates?['lon'] as num?)?.toDouble() ??
+        (dropoffCoordinates?['longitude'] as num?)?.toDouble() ??
+        (dropoff?['lng'] as num?)?.toDouble() ??
+        (dropoff?['lon'] as num?)?.toDouble() ??
+        (dropoff?['longitude'] as num?)?.toDouble() ??
+        74.3440;
 
     pickupPoint = LatLng(pickupLat, pickupLng);
+    dropoffPoint = LatLng(dropLat, dropLng);
+    dropoffAddress = dropoff?['address'] ?? '';
   }
 
   Future<void> _startLiveLocation() async {
@@ -1533,8 +1575,8 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
 
     positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 3,
       ),
     ).listen((position) async {
       final newDriverPoint = LatLng(position.latitude, position.longitude);
@@ -1550,7 +1592,7 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
         );
       }
 
-      mapController.move(newDriverPoint, 15.5);
+      mapController.move(newDriverPoint, 16.5);
     });
   }
 
@@ -1559,28 +1601,7 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
     required LatLng to,
   }) async {
     try {
-      final url = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${from.longitude},${from.latitude};'
-        '${to.longitude},${to.latitude}'
-        '?overview=full&geometries=geojson',
-      );
-
-      final response = await http.get(url);
-
-      if (response.statusCode != 200) return;
-
-      final data = jsonDecode(response.body);
-
-      final coordinates =
-          data['routes'][0]['geometry']['coordinates'] as List;
-
-      final points = coordinates.map<LatLng>((item) {
-        return LatLng(
-          (item[1] as num).toDouble(),
-          (item[0] as num).toDouble(),
-        );
-      }).toList();
+      final points = await _loadRoutePoints(from: from, to: to);
 
       if (!mounted) return;
 
@@ -1596,11 +1617,48 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
     }
   }
 
-  void _openActiveRide(BuildContext context) {
+  Future<List<LatLng>> _loadRoutePoints({
+    required LatLng from,
+    required LatLng to,
+  }) async {
+    final url = Uri.parse(
+      'https://router.project-osrm.org/route/v1/driving/'
+      '${from.longitude},${from.latitude};'
+      '${to.longitude},${to.latitude}'
+      '?overview=full&geometries=geojson',
+    );
+
+    final response = await http.get(url);
+    if (response.statusCode != 200) return [];
+
+    final data = jsonDecode(response.body);
+    final coordinates = data['routes'][0]['geometry']['coordinates'] as List;
+
+    return coordinates.map<LatLng>((item) {
+      return LatLng(
+        (item[1] as num).toDouble(),
+        (item[0] as num).toDouble(),
+      );
+    }).toList();
+  }
+
+  void _openActiveRide(BuildContext context) async {
+    if (pickupPoint != null && dropoffPoint != null) {
+      destinationRoutePoints = await _loadRoutePoints(
+        from: pickupPoint!,
+        to: dropoffPoint!,
+      );
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const DriverRideActiveScreen(),
+        builder: (_) => DriverRideActiveScreen(
+          pickupPoint: pickupPoint,
+          dropoffPoint: dropoffPoint,
+          routePoints: destinationRoutePoints,
+          dropoffAddress: dropoffAddress,
+        ),
       ),
     );
   }
@@ -1613,15 +1671,16 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
 
   @override
   Widget build(BuildContext context) {
-final nav = apiNavigationData?['navigation'];
-final pickup = apiNavigationData?['map']?['pickupMarker'];
+    final nav = apiNavigationData?['navigation'];
+    final pickup = apiNavigationData?['map']?['pickupMarker'];
 
     final eta = nav?['etaMinutes'] ?? 8;
     final locationLabel = nav?['locationLabel'] ?? '10, Lahore';
     final tripMeta = nav?['tripMeta'] ?? '0.6 km • 5 min';
     final actionButton = nav?['actionButton'] ?? 'Arrived at Pickup';
 
-    final centerPoint = driverPoint ?? pickupPoint ?? const LatLng(31.4719997, 74.36066);
+    final centerPoint =
+        driverPoint ?? pickupPoint ?? const LatLng(31.4719997, 74.36066);
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
@@ -1666,7 +1725,6 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
                               'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'com.example.hire_driver',
                         ),
-
                         if (routePoints.isNotEmpty)
                           PolylineLayer(
                             polylines: [
@@ -1677,7 +1735,6 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
                               ),
                             ],
                           ),
-
                         MarkerLayer(
                           markers: [
                             if (driverPoint != null)
@@ -1690,7 +1747,6 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
                                   icon: Icons.two_wheeler_rounded,
                                 ),
                               ),
-
                             if (pickupPoint != null)
                               Marker(
                                 point: pickupPoint!,
@@ -1702,7 +1758,6 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
                         ),
                       ],
                     ),
-
                     Positioned(
                       top: 14,
                       left: 14,
@@ -1718,7 +1773,6 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
               ),
             ),
           ),
-
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(18),
@@ -1776,9 +1830,19 @@ final pickup = apiNavigationData?['map']?['pickupMarker'];
     );
   }
 }
-
 class DriverRideActiveScreen extends StatelessWidget {
-  const DriverRideActiveScreen({super.key});
+  final LatLng? pickupPoint;
+  final LatLng? dropoffPoint;
+  final List<LatLng> routePoints;
+  final String dropoffAddress;
+
+  const DriverRideActiveScreen({
+    super.key,
+    required this.pickupPoint,
+    required this.dropoffPoint,
+    required this.routePoints,
+    this.dropoffAddress = '',
+  });
 
   void _openComplete(BuildContext context) {
     Navigator.push(
@@ -1791,6 +1855,15 @@ class DriverRideActiveScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final centerPoint =
+        pickupPoint ?? dropoffPoint ?? const LatLng(31.5204, 74.3587);
+
+    final destinationText = dropoffAddress.isNotEmpty
+        ? dropoffAddress
+        : dropoffPoint == null
+            ? 'Destination'
+            : '${dropoffPoint!.latitude.toStringAsFixed(5)}, ${dropoffPoint!.longitude.toStringAsFixed(5)}';
+
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       appBar: AppBar(
@@ -1808,88 +1881,91 @@ class DriverRideActiveScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-     Expanded(
-  child: Container(
-    margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-    decoration: BoxDecoration(
-      color: AppColors.softBg(context),
-      borderRadius: BorderRadius.circular(24),
-      border: Border.all(
-        color: AppColors.secondary.withOpacity(0.45),
-      ),
-    ),
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: Stack(
-        children: [
-          FlutterMap(
-            options: MapOptions(
-              initialCenter: const LatLng(31.5204, 74.3587),
-              initialZoom: 14.8,
-            ),
-            children: [
-              TileLayer(
-                urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.hire_driver',
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              decoration: BoxDecoration(
+                color: AppColors.softBg(context),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: AppColors.secondary.withOpacity(0.45),
+                ),
               ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  children: [
+                    FlutterMap(
+                      options: MapOptions(
+                        initialCenter: centerPoint,
+                        initialZoom: 14.8,
+                      ),
+                      children: [
+                        TileLayer(
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.example.hire_driver',
+                        ),
 
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: const [
-                      LatLng(31.5204, 74.3587),
-                      LatLng(31.5100, 74.3440),
-                    ],
-                    strokeWidth: 5,
-                    color: AppColors.primary,
-                  ),
-                ],
-              ),
+                        if (routePoints.isNotEmpty)
+                          PolylineLayer(
+                            polylines: [
+                              Polyline(
+                                points: routePoints,
+                                strokeWidth: 5,
+                                color: AppColors.primary,
+                              ),
+                            ],
+                          ),
 
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: const LatLng(31.5204, 74.3587),
-                    width: 70,
-                    height: 70,
-                    child: const _GlowPickupMarker(),
-                  ),
+                        MarkerLayer(
+                          markers: [
+                            if (pickupPoint != null)
+                              Marker(
+                                point: pickupPoint!,
+                                width: 70,
+                                height: 70,
+                                child: const _GlowPickupMarker(),
+                              ),
 
-                  Marker(
-                    point: const LatLng(31.5100, 74.3440),
-                    width: 60,
-                    height: 60,
-                    child: const _MapPinBubble(
-                      color: Colors.green,
-                      icon: Icons.location_on_rounded,
+                            if (dropoffPoint != null)
+                              Marker(
+                                point: dropoffPoint!,
+                                width: 70,
+                                height: 70,
+                                child: const _MapPinBubble(
+                                  color: Colors.green,
+                                  icon: Icons.location_on_rounded,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
 
-          const Positioned(
-            top: 14,
-            left: 14,
-            child: _MapInfoChip(
-              icon: Icons.route_rounded,
-              text: 'Destination route active',
+                    const Positioned(
+                      top: 14,
+                      left: 14,
+                      child: _MapInfoChip(
+                        icon: Icons.route_rounded,
+                        text: 'Destination route active',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ],
-      ),
-    ),
-  ),
-),
+
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: AppColors.card(context),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+              border: Border.all(
+                color: AppColors.secondary.withOpacity(0.45),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withOpacity(0.05),
@@ -1905,13 +1981,17 @@ class DriverRideActiveScreen extends StatelessWidget {
                   title: 'Trip Timer',
                   value: '12 mins',
                 ),
+
                 const SizedBox(height: 12),
-                const _DetailRow(
+
+                _DetailRow(
                   icon: Icons.location_on_rounded,
-                  title: 'Destination',
-                  value: 'Gulberg, Lahore',
+                  title: 'Dropoff',
+                  value: destinationText,
                 ),
+
                 const SizedBox(height: 16),
+
                 Row(
                   children: const [
                     Expanded(
@@ -1929,7 +2009,9 @@ class DriverRideActiveScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+
                 const SizedBox(height: 16),
+
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(

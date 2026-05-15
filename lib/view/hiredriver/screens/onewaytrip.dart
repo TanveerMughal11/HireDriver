@@ -78,14 +78,15 @@ Future<void> _fetchPlaceSuggestions(String input) async {
   });
 
   try {
-    final url = Uri.parse(
-      'https://nominatim.openstreetmap.org/search'
-      '?q=$input'
-      '&format=json'
-      '&addressdetails=1'
-      '&limit=5'
-      '&countrycodes=pk',
-    );
+final url = Uri.parse(
+  'https://nominatim.openstreetmap.org/search'
+  '?q=$input'
+  '&format=json'
+  '&addressdetails=1'
+  '&limit=5'
+  '&countrycodes=pk'
+  '&accept-language=en',
+);
 
     final response = await http.get(
       url,
@@ -939,43 +940,79 @@ class _LocationRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          if (onCurrentTap != null) ...[
-            InkWell(
-              onTap: onCurrentTap,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                height: 40,
-                width: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.softBg(context),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.gps_fixed_rounded,
-                  color: dotColor,
-                  size: 20,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          InkWell(
-            onTap: onMapTap,
+     const SizedBox(width: 8),
+
+if (onCurrentTap != null) ...[
+  Column(
+    children: [
+      InkWell(
+        onTap: onCurrentTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 44,
+          width: 44,
+          decoration: BoxDecoration(
+            color: AppColors.softBg(context),
             borderRadius: BorderRadius.circular(12),
-            child: Container(
-              height: 40,
-              width: 40,
-              decoration: BoxDecoration(
-                color: AppColors.softBg(context),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: dotColor,
-                size: 20,
-              ),
+            border: Border.all(
+              color: dotColor.withOpacity(0.25),
             ),
           ),
+          child: Icon(
+            Icons.gps_fixed_rounded,
+            color: dotColor,
+            size: 22,
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        'Current',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: dotColor,
+        ),
+      ),
+    ],
+  ),
+
+  const SizedBox(width: 10),
+],
+
+Column(
+  children: [
+    InkWell(
+      onTap: onMapTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 44,
+        width: 44,
+        decoration: BoxDecoration(
+          color: AppColors.softBg(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: dotColor.withOpacity(0.25),
+          ),
+        ),
+        child: Icon(
+          Icons.map_rounded,
+          color: dotColor,
+          size: 22,
+        ),
+      ),
+    ),
+    const SizedBox(height: 4),
+    Text(
+      'Map',
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        color: dotColor,
+      ),
+    ),
+  ],
+),
         ],
       ),
     );

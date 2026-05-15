@@ -139,20 +139,29 @@ static Future<Map<String, dynamic>> declineRideRequest({
   final token = await _getToken();
 
   final response = await http.post(
-    Uri.parse('$baseUrl/api/rider-requests/$rideRequestId/decline'),
+    Uri.parse(
+      '$baseUrl/api/rider-requests/$rideRequestId/decline',
+    ),
     headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     },
   );
 
+  print(response.statusCode);
+  print(response.body);
+
   final data = _decodeResponse(response);
 
-  if (response.statusCode == 200 && data['success'] == true) {
+  if ((response.statusCode == 200 ||
+          response.statusCode == 201) &&
+      data['success'] == true) {
     return data;
   }
 
-  throw Exception(data['message'] ?? 'Failed to decline ride request');
+  throw Exception(
+    data['message'] ?? 'Failed to decline ride request',
+  );
 }
   static Future<Map<String, dynamic>> acceptRideRequest({
     required String rideRequestId,

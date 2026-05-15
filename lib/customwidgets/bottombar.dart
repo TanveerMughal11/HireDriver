@@ -33,33 +33,33 @@ class AppBottomNavBar extends StatelessWidget {
     ),
   ];
 
-  void _onItemTapped(BuildContext context, int index) {
-    if (index == currentIndex) return;
+void _onItemTapped(BuildContext context, int index) {
+  if (index == currentIndex) return;
 
-    Widget screen;
+  Widget screen;
 
-    switch (index) {
-      case 0:
-        screen = const HomeScreen();
-        break;
-      case 1:
-        screen = const HistoryScreen();
-        break;
-      case 2:
-        screen = const WalletScreen();
-        break;
-      case 3:
-        screen = const ProfileScreen();
-        break;
-      default:
-        screen = const HomeScreen();
-    }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
-    );
+  switch (index) {
+    case 0:
+      screen = const HomeScreen();
+      break;
+    case 1:
+      screen = const HistoryScreen();
+      break;
+    case 2:
+      screen = const WalletScreen();
+      break;
+    case 3:
+      screen = const ProfileScreen();
+      break;
+    default:
+      screen = const HomeScreen();
   }
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => screen),
+  );
+}
 
   @override
   Widget build(BuildContext context) {

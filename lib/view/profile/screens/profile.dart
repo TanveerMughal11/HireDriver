@@ -6,9 +6,11 @@ import 'package:hire_driver/customwidgets/buttons.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/applyasdriver2nd.dart';
 import 'package:hire_driver/view/applyasrider.dart';
+import 'package:hire_driver/view/car%20rental/listofactivecars.dart';
 import 'package:hire_driver/view/car%20rental/screens/carbookinghistory.dart';
 import 'package:hire_driver/view/car%20rental/activerental.dart';
 import 'package:hire_driver/view/car%20rental/screens/mycarlisting.dart';
+import 'package:hire_driver/view/driverandriderscreens.dart';
 import 'package:hire_driver/view/forms/screen/applyasrider.dart';
 import 'package:hire_driver/view/profile/provider/profile.dart';
 import 'package:hire_driver/view/rider/home.dart';
@@ -487,14 +489,15 @@ final driverStatus = provider.driverStatus;
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const ActiveRentalScreen(
-                        booking: {},
+                      builder: (_) => const ActiveRentalsListScreen(
+                        
                       ),
                     ),
                   );
                 },
               ),
-                     _MenuTile(
+         
+         /*            _MenuTile(
                 icon: Icons.key_rounded,
                 title: 'Driver Screens',
                 onTap: () {
@@ -534,7 +537,7 @@ final driverStatus = provider.driverStatus;
                     ),
                   );
                 },
-              ),
+              ), */
               const _TileDivider(),
               _MenuTile(
                 icon: Icons.support_agent_rounded,
