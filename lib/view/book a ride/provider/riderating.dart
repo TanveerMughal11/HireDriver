@@ -1,8 +1,9 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:open_file/open_file.dart';
 
 class RideReviewProvider extends ChangeNotifier {
   int selectedRating = 0;
@@ -13,7 +14,13 @@ class RideReviewProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> downloadReceipt() async {
+  Future<bool> downloadReceipt({
+    String trip = '0 km - 0 min',
+    String rider = 'Accepted rider',
+    String pickup = 'Pickup location',
+    String dropoff = 'Destination',
+    String totalPaid = '0',
+  }) async {
     try {
       isDownloading = true;
       notifyListeners();
@@ -29,19 +36,21 @@ class RideReviewProvider extends ChangeNotifier {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    "HireDrive Receipt",
+                    'HireDrive Receipt',
                     style: pw.TextStyle(fontSize: 24),
                   ),
                   pw.SizedBox(height: 20),
-                  pw.Text("Trip: 12 km · 28 min"),
-                  pw.Text("Driver: Zain Ul Abideen"),
+                  pw.Text('Trip: $trip'),
+                  pw.Text('Rider: $rider'),
+                  pw.Text('Pickup: $pickup'),
+                  pw.Text('Destination: $dropoff'),
                   pw.SizedBox(height: 10),
                   pw.Text(
-                    "Total Paid: PKR 350",
+                    'Total Paid: PKR $totalPaid',
                     style: pw.TextStyle(fontSize: 18),
                   ),
                   pw.SizedBox(height: 20),
-                  pw.Text("Thank you for using HireDrive"),
+                  pw.Text('Thank you for using HireDrive'),
                 ],
               ),
             );
@@ -50,7 +59,7 @@ class RideReviewProvider extends ChangeNotifier {
       );
 
       final dir = await getApplicationDocumentsDirectory();
-      final file = File("${dir.path}/receipt.pdf");
+      final file = File('${dir.path}/receipt.pdf');
 
       await file.writeAsBytes(await pdf.save());
       await OpenFile.open(file.path);
@@ -69,5 +78,11 @@ class RideReviewProvider extends ChangeNotifier {
   void clear() {
     selectedRating = 0;
     isDownloading = false;
+  }
+
+  @override
+  void dispose() {
+    clear();
+    super.dispose();
   }
 }

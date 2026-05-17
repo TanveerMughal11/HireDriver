@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
-import 'package:hire_driver/main.dart';
 import 'package:hire_driver/view/history.dart';
 import 'package:hire_driver/view/home.dart';
 import 'package:hire_driver/view/profile/screens/profile.dart';

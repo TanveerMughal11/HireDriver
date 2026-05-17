@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
+import 'package:hire_driver/view/hiredriver/services/hiredriver.dart';
 
 import 'package:hire_driver/view/hiredriver/provider/waitingdriveracceptance.dart';
 import 'package:provider/provider.dart';
@@ -44,20 +46,35 @@ class _AwaitingDriverAcceptanceBodyState
     extends State<_AwaitingDriverAcceptanceBody>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
+  Timer? _statusPollTimer;
   bool dialogShown = false;
+  bool _acceptanceNotified = false;
+  Map<String, dynamic> _liveHireRequest = {};
+  Map<String, dynamic> _liveWaitingState = {};
 
   Map<String, dynamic> get selectedDriver =>
-      widget.hireRequest['selectedDriver'] ?? {};
+      _liveHireRequest['selectedDriver'] ?? {};
 
-  Map<String, dynamic> get pickup => widget.hireRequest['pickup'] ?? {};
+  String get currentStatus => _liveHireRequest['status']?.toString() ?? '';
 
-  Map<String, dynamic> get dropoff => widget.hireRequest['dropoff'] ?? {};
+  String get hireRequestId =>
+      _liveHireRequest['id']?.toString() ??
+      _liveHireRequest['_id']?.toString() ??
+      _liveHireRequest['hireRequestId']?.toString() ??
+      '';
 
-  Map<String, dynamic> get vehicle => widget.hireRequest['userVehicle'] ?? {};
+  Map<String, dynamic> get pickup => _liveHireRequest['pickup'] ?? {};
+
+  Map<String, dynamic> get dropoff => _liveHireRequest['dropoff'] ?? {};
+
+  Map<String, dynamic> get vehicle => _liveHireRequest['userVehicle'] ?? {};
 
   @override
   void initState() {
     super.initState();
+
+    _liveHireRequest = Map<String, dynamic>.from(widget.hireRequest);
+    _liveWaitingState = Map<String, dynamic>.from(widget.waitingState);
 
     _animationController = AnimationController(
       vsync: this,
@@ -67,10 +84,99 @@ class _AwaitingDriverAcceptanceBodyState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      final seconds = widget.waitingState['secondsRemaining'] ?? 60;
+      final seconds = _liveWaitingState['secondsRemaining'] ?? 60;
 
       context.read<AwaitingDriverProvider>().startCountdown(seconds);
+      _refreshRequestStatus(showToast: false);
+      _startStatusPolling();
     });
+  }
+
+  void _startStatusPolling() {
+    _statusPollTimer?.cancel();
+    _statusPollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _refreshRequestStatus(showToast: false);
+    });
+  }
+
+  Future<void> _refreshRequestStatus({required bool showToast}) async {
+    if (hireRequestId.isEmpty) {
+      if (showToast && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Request ID missing. Please go back and try again.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final data = await HireDriverApiService.getHireDriverRequest(
+        hireRequestId: hireRequestId,
+      );
+
+      final latestHireRequest = Map<String, dynamic>.from(
+        data['hireRequest'] ?? {},
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _liveHireRequest = latestHireRequest;
+      });
+
+      final deadline = latestHireRequest['driverAcceptanceDeadline']
+          ?.toString();
+      if (deadline != null && deadline.isNotEmpty) {
+        final parsed = DateTime.tryParse(deadline);
+        if (parsed != null) {
+          final seconds = parsed.difference(DateTime.now()).inSeconds;
+          context.read<AwaitingDriverProvider>().syncRemainingSeconds(seconds);
+          setState(() {
+            _liveWaitingState['secondsRemaining'] = seconds < 0 ? 0 : seconds;
+          });
+        }
+      }
+
+      setState(() {
+        if (currentStatus == 'confirmed') {
+          _liveWaitingState['statusText'] = 'Driver accepted your request';
+        } else if (currentStatus == 'awaiting_driver_acceptance') {
+          _liveWaitingState['statusText'] = 'Waiting for driver response...';
+        }
+      });
+
+      if (currentStatus == 'confirmed' && selectedDriver.isNotEmpty) {
+        _statusPollTimer?.cancel();
+        context.read<AwaitingDriverProvider>().cancelTimer();
+        if (!_acceptanceNotified) {
+          _acceptanceNotified = true;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${selectedDriver['driverName'] ?? 'Driver'} accepted your request',
+                ),
+              ),
+            );
+          }
+        }
+      }
+
+      if (showToast && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Driver response refreshed')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      if (showToast) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    }
   }
 
   void _cancelRequest() {
@@ -101,10 +207,7 @@ class _AwaitingDriverAcceptanceBodyState
           ),
           content: Text(
             'Driver did not respond in time. Please try another driver.',
-            style: TextStyle(
-              color: AppColors.text2(context),
-              fontSize: 14,
-            ),
+            style: TextStyle(color: AppColors.text2(context), fontSize: 14),
           ),
           actions: [
             TextButton(
@@ -128,6 +231,8 @@ class _AwaitingDriverAcceptanceBodyState
 
   @override
   void dispose() {
+    _statusPollTimer?.cancel();
+    context.read<AwaitingDriverProvider>().cancelTimer();
     _animationController.dispose();
     super.dispose();
   }
@@ -237,14 +342,22 @@ class _AwaitingDriverAcceptanceBodyState
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () => _refreshRequestStatus(showToast: true),
+            tooltip: 'Refresh status',
+            icon: const Icon(Icons.refresh_rounded),
+            color: AppColors.text1(context),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildWaitingAnimation() {
-    final driverName = selectedDriver['driverName'] ??
-        widget.waitingState['driverName'] ??
+    final driverName =
+        selectedDriver['driverName'] ??
+        _liveWaitingState['driverName'] ??
         'Driver';
 
     return Column(
@@ -281,7 +394,10 @@ class _AwaitingDriverAcceptanceBodyState
         ),
         const SizedBox(height: 18),
         Text(
-          widget.waitingState['statusText'] ?? 'Waiting for driver response...',
+          currentStatus == 'confirmed'
+              ? 'Driver accepted your request'
+              : (_liveWaitingState['statusText'] ??
+                    'Waiting for driver response...'),
           textAlign: TextAlign.center,
           style: TextStyle(
             color: AppColors.text1(context),
@@ -304,7 +420,7 @@ class _AwaitingDriverAcceptanceBodyState
   }
 
   Widget _buildStatusCard(AwaitingDriverProvider provider) {
-    final totalSeconds = widget.waitingState['secondsRemaining'] ?? 60;
+    final totalSeconds = _liveWaitingState['secondsRemaining'] ?? 60;
 
     return Container(
       width: double.infinity,
@@ -333,7 +449,9 @@ class _AwaitingDriverAcceptanceBodyState
           ),
           const SizedBox(height: 8),
           Text(
-            'Driver has $totalSeconds seconds to accept your booking',
+            currentStatus == 'confirmed'
+                ? 'Your driver has accepted. You are confirmed.'
+                : 'Driver has $totalSeconds seconds to accept your booking',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.text2(context),
@@ -352,6 +470,22 @@ class _AwaitingDriverAcceptanceBodyState
               backgroundColor: AppColors.secondary.withOpacity(0.4),
               valueColor: const AlwaysStoppedAnimation<Color>(
                 AppColors.primary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _refreshRequestStatus(showToast: true),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Refresh Status'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary.withOpacity(0.6)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -506,7 +640,7 @@ class _AwaitingDriverAcceptanceBodyState
             icon: Icons.access_time_rounded,
             iconColor: const Color(0xFF8E7CF7),
             label: 'Time',
-            value: widget.hireRequest['scheduledTime'] ?? '--:--',
+            value: _liveHireRequest['scheduledTime'] ?? '--:--',
           ),
           const SizedBox(height: 12),
           _SummaryRow(

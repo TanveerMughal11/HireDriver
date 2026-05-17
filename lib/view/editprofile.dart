@@ -198,7 +198,7 @@ Widget build(BuildContext context) {
                     const SizedBox(height: 12),
 
                     DropdownButtonFormField<String>(
-                      value: selectedGender,
+                      initialValue: selectedGender,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppColors.softBg(context),

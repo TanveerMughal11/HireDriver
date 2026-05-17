@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:hire_driver/service/rental_service.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 
 class ReturnReviewScreen extends StatefulWidget {
   final Map<String, dynamic> booking;
 
-  const ReturnReviewScreen({
-    super.key,
-    required this.booking,
-  });
+  const ReturnReviewScreen({super.key, required this.booking});
 
   @override
   State<ReturnReviewScreen> createState() => _ReturnReviewScreenState();
@@ -17,6 +15,7 @@ class _ReturnReviewScreenState extends State<ReturnReviewScreen> {
   int carRating = 0;
   int hostRating = 0;
   final TextEditingController reviewController = TextEditingController();
+  bool isSubmitting = false;
 
   Widget _buildStars(int rating, Function(int) onTap) {
     return Row(
@@ -63,10 +62,7 @@ class _ReturnReviewScreenState extends State<ReturnReviewScreen> {
               children: [
                 Text(
                   "Confirm Return",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                 ),
                 SizedBox(height: 8),
                 Text("Please confirm car is returned in good condition."),
@@ -125,13 +121,69 @@ class _ReturnReviewScreenState extends State<ReturnReviewScreen> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Review Submitted")),
-              );
+            onPressed: isSubmitting
+                ? null
+                : () async {
+                    final bookingId =
+                        widget.booking['id']?.toString() ??
+                        widget.booking['_id']?.toString() ??
+                        widget.booking['bookingId']?.toString() ??
+                        widget.booking['rentalId']?.toString() ??
+                        '';
 
-              Navigator.popUntil(context, (route) => route.isFirst);
-            },
+                    if (bookingId.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Unable to return booking: missing booking id',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final combinedRating = ((carRating + hostRating) / 2)
+                        .clamp(1, 5)
+                        .toDouble();
+                    final review = reviewController.text.trim();
+
+                    setState(() {
+                      isSubmitting = true;
+                    });
+
+                    final response = await RentalService.returnCar(
+                      bookingId: bookingId,
+                      rating: combinedRating,
+                      review: review,
+                    );
+
+                    if (!mounted) return;
+
+                    setState(() {
+                      isSubmitting = false;
+                    });
+
+                    if (response['success'] == true) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            response['message']?.toString() ??
+                                'Car returned successfully',
+                          ),
+                        ),
+                      );
+                      Navigator.popUntil(context, (route) => route.isFirst);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            response['message']?.toString() ??
+                                'Failed to return car',
+                          ),
+                        ),
+                      );
+                    }
+                  },
             child: const Text(
               "Submit Review",
               style: TextStyle(

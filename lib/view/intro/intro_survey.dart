@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/utils/textstyle.dart';
 import 'package:hire_driver/view/home.dart';
-import 'package:hire_driver/auth/login/screen/login.dart';
 
 class RoleSelectionScreen extends StatefulWidget {
   const RoleSelectionScreen({super.key});

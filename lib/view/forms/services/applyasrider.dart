@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -17,10 +17,7 @@ class DriverApplicationApiService {
 
     final response = await http.get(
       Uri.parse('$baseUrl/api/driver-applications/me'),
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
+      headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
     );
 
     return jsonDecode(response.body);
@@ -112,12 +109,10 @@ class DriverApplicationApiService {
 
     final response = await http.post(
       Uri.parse('$baseUrl/api/driver-applications/submit'),
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
+      headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
     );
 
     return jsonDecode(response.body);
   }
 }
+

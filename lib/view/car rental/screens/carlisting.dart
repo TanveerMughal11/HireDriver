@@ -523,7 +523,7 @@ class _BrowseCarsScreenBody extends StatelessWidget {
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: provider.carTypes.length + 4,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                               const SizedBox(width: 8),
                           itemBuilder: (context, index) {
                             if (index < provider.carTypes.length) {
@@ -778,7 +778,6 @@ class _CarCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const _CarCard({
-    super.key,
     required this.image,
     required this.name,
     required this.price,
@@ -1040,7 +1039,7 @@ class _DropdownField extends StatelessWidget {
         border: Border.all(color: AppColors.secondary),
       ),
       child: DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         isExpanded: true,
         dropdownColor: AppColors.card(context),
         style: TextStyle(

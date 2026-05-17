@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:hire_driver/customwidgets/custom_textfields.dart';
@@ -100,28 +100,20 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       if (response.statusCode == 200 && data['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              data['message'] ?? 'Profile updated successfully',
-            ),
+            content: Text(data['message'] ?? 'Profile updated successfully'),
           ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              data['message'] ?? 'Update failed',
-            ),
-          ),
+          SnackBar(content: Text(data['message'] ?? 'Update failed')),
         );
       }
     } catch (e) {
       debugPrint('Update profile error: $e');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Something went wrong'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Something went wrong')));
     } finally {
       setState(() {
         isUpdating = false;
@@ -132,9 +124,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   void _openChangePassword() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const ChangePasswordScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
     );
   }
 
@@ -162,15 +152,11 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             fontWeight: FontWeight.w800,
           ),
         ),
-        iconTheme: IconThemeData(
-          color: AppColors.text1(context),
-        ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primary,
-              ),
+              child: CircularProgressIndicator(color: AppColors.primary),
             )
           : SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -296,12 +282,10 @@ class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
 
   @override
-  State<ChangePasswordScreen> createState() =>
-      _ChangePasswordScreenState();
+  State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
 }
 
-class _ChangePasswordScreenState
-    extends State<ChangePasswordScreen> {
+class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   static const String baseUrl = 'https://hiredrive-fal0.onrender.com';
 
   final oldPasswordController = TextEditingController();
@@ -322,11 +306,9 @@ class _ChangePasswordScreenState
   Future<void> updatePassword() async {
     if (newPasswordController.text.trim() !=
         confirmPasswordController.text.trim()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Passwords do not match'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
       return;
     }
 
@@ -347,42 +329,31 @@ class _ChangePasswordScreenState
         body: jsonEncode({
           "oldPassword": oldPasswordController.text.trim(),
           "newPassword": newPasswordController.text.trim(),
-          "confirmNewPassword":
-              confirmPasswordController.text.trim(),
+          "confirmNewPassword": confirmPasswordController.text.trim(),
         }),
       );
 
       final data = jsonDecode(response.body);
 
-      if (response.statusCode == 200 &&
-          data['success'] == true) {
+      if (response.statusCode == 200 && data['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              data['message'] ??
-                  'Password changed successfully',
-            ),
+            content: Text(data['message'] ?? 'Password changed successfully'),
           ),
         );
 
         Navigator.pop(context);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              data['message'] ?? 'Failed',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(data['message'] ?? 'Failed')));
       }
     } catch (e) {
       debugPrint('Change password error: $e');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Something went wrong'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Something went wrong')));
     } finally {
       setState(() {
         isLoading = false;
@@ -413,9 +384,7 @@ class _ChangePasswordScreenState
             fontWeight: FontWeight.w800,
           ),
         ),
-        iconTheme: IconThemeData(
-          color: AppColors.text1(context),
-        ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -442,8 +411,7 @@ class _ChangePasswordScreenState
                 hintText: 'Old Password',
                 controller: oldPasswordController,
                 obscureText: hideOld,
-                onToggle: () =>
-                    setState(() => hideOld = !hideOld),
+                onToggle: () => setState(() => hideOld = !hideOld),
               ),
 
               const SizedBox(height: 14),
@@ -452,8 +420,7 @@ class _ChangePasswordScreenState
                 hintText: 'New Password',
                 controller: newPasswordController,
                 obscureText: hideNew,
-                onToggle: () =>
-                    setState(() => hideNew = !hideNew),
+                onToggle: () => setState(() => hideNew = !hideNew),
               ),
 
               const SizedBox(height: 14),
@@ -462,8 +429,7 @@ class _ChangePasswordScreenState
                 hintText: 'Confirm Password',
                 controller: confirmPasswordController,
                 obscureText: hideConfirm,
-                onToggle: () =>
-                    setState(() => hideConfirm = !hideConfirm),
+                onToggle: () => setState(() => hideConfirm = !hideConfirm),
               ),
 
               const SizedBox(height: 26),
@@ -520,10 +486,7 @@ class _ProfileAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.softBg(context),
         shape: BoxShape.circle,
-        border: Border.all(
-          color: AppColors.secondary,
-          width: 2,
-        ),
+        border: Border.all(color: AppColors.secondary, width: 2),
       ),
       child: const Icon(
         Icons.person_rounded,
@@ -543,16 +506,9 @@ class _LockHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.softBg(context),
         shape: BoxShape.circle,
-        border: Border.all(
-          color: AppColors.secondary,
-          width: 2,
-        ),
+        border: Border.all(color: AppColors.secondary, width: 2),
       ),
-      child: const Icon(
-        Icons.lock_rounded,
-        color: AppColors.primary,
-        size: 42,
-      ),
+      child: const Icon(Icons.lock_rounded, color: AppColors.primary, size: 42),
     );
   }
 }
@@ -575,14 +531,10 @@ class _PasswordField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: obscureText,
-      style: TextStyle(
-        color: AppColors.text1(context),
-      ),
+      style: TextStyle(color: AppColors.text1(context)),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: TextStyle(
-          color: AppColors.text2(context),
-        ),
+        hintStyle: TextStyle(color: AppColors.text2(context)),
         filled: true,
         fillColor: AppColors.softBg(context),
         contentPadding: const EdgeInsets.symmetric(
@@ -600,24 +552,18 @@ class _PasswordField extends StatelessWidget {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: AppColors.secondary,
-          ),
+          borderSide: BorderSide(color: AppColors.secondary),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: AppColors.secondary,
-          ),
+          borderSide: BorderSide(color: AppColors.secondary),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: AppColors.primary,
-            width: 1.5,
-          ),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
     );
   }
 }
+

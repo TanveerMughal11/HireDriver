@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,10 +13,7 @@ class HireDriverApiService {
   static Future<Map<String, dynamic>> getOptions() async {
     final response = await http.get(
       Uri.parse('$baseUrl/api/hire-drivers/options'),
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'FlutterApp',
-      },
+      headers: {'Accept': 'application/json', 'User-Agent': 'FlutterApp'},
     );
 
     final data = jsonDecode(response.body);
@@ -50,12 +47,8 @@ class HireDriverApiService {
       },
       body: jsonEncode({
         'serviceType': serviceType,
-        'pickup': {
-          'address': pickupAddress,
-        },
-        'dropoff': {
-          'address': dropoffAddress,
-        },
+        'pickup': {'address': pickupAddress},
+        'dropoff': {'address': dropoffAddress},
         'scheduledDate': scheduledDate,
         'scheduledTime': scheduledTime,
         'vehicle': {
@@ -100,12 +93,8 @@ class HireDriverApiService {
       },
       body: jsonEncode({
         'serviceType': serviceType,
-        'pickup': {
-          'address': pickupAddress,
-        },
-        'dropoff': {
-          'address': dropoffAddress,
-        },
+        'pickup': {'address': pickupAddress},
+        'dropoff': {'address': dropoffAddress},
         'scheduledDate': scheduledDate,
         'scheduledTime': scheduledTime,
         'vehicle': {
@@ -233,5 +222,99 @@ class HireDriverApiService {
     }
 
     throw Exception(data['message'] ?? 'Failed to confirm booking');
+  }
+
+  static Future<Map<String, dynamic>> getHireDriverRequest({
+    required String hireRequestId,
+  }) async {
+    final token = await _getToken();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/hire-drivers/$hireRequestId'),
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'FlutterApp',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(data['message'] ?? 'Failed to load hire request status');
+  }
+
+  static Future<Map<String, dynamic>> getWallet() async {
+    final token = await _getToken();
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/hire-drivers/wallet'),
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'FlutterApp',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(data['message'] ?? 'Failed to load wallet');
+  }
+
+  static Future<Map<String, dynamic>> addMoney({required double amount}) async {
+    final token = await _getToken();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/hire-drivers/wallet/add-money'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'FlutterApp',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'amount': amount}),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(data['message'] ?? 'Failed to add money');
+  }
+
+  static Future<Map<String, dynamic>> withdrawMoney({
+    required double amount,
+  }) async {
+    final token = await _getToken();
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/hire-drivers/wallet/withdraw-money'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'FlutterApp',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'amount': amount}),
+    );
+
+    final data = jsonDecode(response.body);
+
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(data['message'] ?? 'Failed to withdraw money');
   }
 }

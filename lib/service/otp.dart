@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class OtpApiService {
@@ -15,10 +15,7 @@ class OtpApiService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({
-          'email': email,
-          'otp': otp,
-        }),
+        body: jsonEncode({'email': email, 'otp': otp}),
       );
 
       final data = jsonDecode(response.body);
@@ -36,16 +33,11 @@ class OtpApiService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
-  static Future<Map<String, dynamic>> resendOtp({
-    required String email,
-  }) async {
+  static Future<Map<String, dynamic>> resendOtp({required String email}) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/auth/resend-otp'),
@@ -53,9 +45,7 @@ class OtpApiService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({
-          'email': email,
-        }),
+        body: jsonEncode({'email': email}),
       );
 
       final data = jsonDecode(response.body);
@@ -73,10 +63,8 @@ class OtpApiService {
         };
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 }
+

@@ -238,7 +238,7 @@ class MyBookingsScreen extends StatelessWidget {
                                                         width: double.infinity,
                                                         fit: BoxFit.cover,
                                                         errorBuilder:
-                                                            (_, __, ___) {
+                                                            (_, _, _) {
                                                           return Container(
                                                             height: 180,
                                                             width:

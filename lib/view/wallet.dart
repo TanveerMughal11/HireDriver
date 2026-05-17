@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hire_driver/customwidgets/bottombar.dart';
 import 'package:hire_driver/utils/app_colors.dart';
+import 'package:hire_driver/view/hiredriver/services/hiredriver.dart';
 
 class WalletScreen extends StatefulWidget {
   const WalletScreen({super.key});
@@ -11,8 +12,11 @@ class WalletScreen extends StatefulWidget {
 
 class _WalletScreenState extends State<WalletScreen> {
   String selectedFilter = 'All';
+  bool isLoadingWallet = true;
+  bool isSubmittingWalletAction = false;
+  double walletBalance = 0;
 
-  final List<_TransactionItemData> allTransactions = const [
+  final List<_TransactionItemData> allTransactions = [
     _TransactionItemData(
       type: 'credit',
       title: 'Referral Bonus',
@@ -59,6 +63,142 @@ class _WalletScreenState extends State<WalletScreen> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadWallet();
+  }
+
+  String _formatPkr(double amount) {
+    final normalized = amount.isFinite ? amount : 0;
+    return 'PKR ${normalized.toStringAsFixed(0)}';
+  }
+
+  Future<void> _loadWallet() async {
+    setState(() {
+      isLoadingWallet = true;
+    });
+
+    try {
+      final response = await HireDriverApiService.getWallet();
+      final wallet = (response['wallet'] ?? {}) as Map<String, dynamic>;
+      final balanceValue = wallet['balance'];
+      final parsedBalance = balanceValue is num
+          ? balanceValue.toDouble()
+          : double.tryParse(balanceValue?.toString() ?? '0') ?? 0;
+
+      if (!mounted) return;
+      setState(() {
+        walletBalance = parsedBalance;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to load wallet: $e')));
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isLoadingWallet = false;
+      });
+    }
+  }
+
+  Future<void> _performWalletAction({required bool isAdd}) async {
+    final controller = TextEditingController();
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(isAdd ? 'Add Money' : 'Withdraw Money'),
+          content: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Amount (PKR)',
+              hintText: 'Enter amount',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final parsed = double.tryParse(controller.text.trim());
+                Navigator.pop(dialogContext, parsed);
+              },
+              child: const Text('Confirm'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (amount == null) return;
+
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Amount must be greater than 0')),
+      );
+      return;
+    }
+
+    setState(() {
+      isSubmittingWalletAction = true;
+    });
+
+    try {
+      final result = isAdd
+          ? await HireDriverApiService.addMoney(amount: amount)
+          : await HireDriverApiService.withdrawMoney(amount: amount);
+
+      final wallet = (result['wallet'] ?? {}) as Map<String, dynamic>;
+      final balanceValue = wallet['balance'];
+      final parsedBalance = balanceValue is num
+          ? balanceValue.toDouble()
+          : double.tryParse(balanceValue?.toString() ?? '0') ?? walletBalance;
+
+      if (!mounted) return;
+      setState(() {
+        walletBalance = parsedBalance;
+        allTransactions.insert(
+          0,
+          _TransactionItemData(
+            type: isAdd ? 'credit' : 'debit',
+            title: isAdd ? 'Wallet Top-up' : 'Wallet Withdrawal',
+            subtitle: isAdd ? 'Added to HD Wallet' : 'Withdrawn from HD Wallet',
+            time: 'Just now',
+            amount: '${isAdd ? '+' : '-'}${_formatPkr(amount)}',
+            amountColor: isAdd
+                ? const Color(0xFF10B981)
+                : const Color(0xFFF05353),
+            icon: isAdd ? Icons.add_rounded : Icons.payments_outlined,
+            iconBg: isAdd ? const Color(0xFFCFEFD9) : const Color(0xFFF7D9DA),
+            iconColor: AppColors.primary,
+          ),
+        );
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']?.toString() ?? 'Wallet updated'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        isSubmittingWalletAction = false;
+      });
+    }
+  }
+
   List<_TransactionItemData> get filteredTransactions {
     if (selectedFilter == 'Credit') {
       return allTransactions.where((e) => e.type == 'credit').toList();
@@ -73,9 +213,7 @@ class _WalletScreenState extends State<WalletScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      bottomNavigationBar: const AppBottomNavBar(
-        currentIndex: 2,
-      ),
+      bottomNavigationBar: const AppBottomNavBar(currentIndex: 2),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -83,7 +221,14 @@ class _WalletScreenState extends State<WalletScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _WalletBalanceCard(),
+              _WalletBalanceCard(
+                balanceText: isLoadingWallet
+                    ? 'Loading...'
+                    : _formatPkr(walletBalance),
+                onAddMoney: () => _performWalletAction(isAdd: true),
+                onWithdrawMoney: () => _performWalletAction(isAdd: false),
+                isActionDisabled: isLoadingWallet || isSubmittingWalletAction,
+              ),
               const SizedBox(height: 18),
               const _SectionTitle(title: 'Payment Methods'),
               const SizedBox(height: 12),
@@ -141,7 +286,17 @@ class _WalletScreenState extends State<WalletScreen> {
 }
 
 class _WalletBalanceCard extends StatelessWidget {
-  const _WalletBalanceCard();
+  final String balanceText;
+  final VoidCallback onAddMoney;
+  final VoidCallback onWithdrawMoney;
+  final bool isActionDisabled;
+
+  const _WalletBalanceCard({
+    required this.balanceText,
+    required this.onAddMoney,
+    required this.onWithdrawMoney,
+    required this.isActionDisabled,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -226,8 +381,8 @@ class _WalletBalanceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'PKR 3,250',
+              Text(
+                balanceText,
                 style: TextStyle(
                   color: AppColors.white,
                   fontSize: 28,
@@ -235,12 +390,13 @@ class _WalletBalanceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 22),
-              const Row(
+              Row(
                 children: [
                   Expanded(
                     child: _WalletActionButton(
                       text: 'Add Money',
                       icon: Icons.add,
+                      onTap: isActionDisabled ? null : onAddMoney,
                     ),
                   ),
                   SizedBox(width: 14),
@@ -248,6 +404,7 @@ class _WalletBalanceCard extends StatelessWidget {
                     child: _WalletActionButton(
                       text: 'Withdraw ',
                       icon: Icons.payments_outlined,
+                      onTap: isActionDisabled ? null : onWithdrawMoney,
                     ),
                   ),
                 ],
@@ -263,40 +420,44 @@ class _WalletBalanceCard extends StatelessWidget {
 class _WalletActionButton extends StatelessWidget {
   final String text;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _WalletActionButton({
     required this.text,
     required this.icon,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 54,
-      decoration: BoxDecoration(
-        color: AppColors.white.withOpacity(0.16),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.white.withOpacity(0.16),
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        height: 54,
+        decoration: BoxDecoration(
+          color: AppColors.white.withOpacity(onTap == null ? 0.1 : 0.16),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.white.withOpacity(0.16)),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: AppColors.white, size: 18),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              text,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: AppColors.white, size: 18),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                text,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -305,9 +466,7 @@ class _WalletActionButton extends StatelessWidget {
 class _SectionTitle extends StatelessWidget {
   final String title;
 
-  const _SectionTitle({
-    required this.title,
-  });
+  const _SectionTitle({required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -385,10 +544,7 @@ class _PaymentMethodCard extends StatelessWidget {
                 ),
                 if (amountText.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  const Text(
-                    '',
-                    style: TextStyle(fontSize: 0),
-                  ),
+                  const Text('', style: TextStyle(fontSize: 0)),
                   Text(
                     amountText,
                     style: const TextStyle(
@@ -511,9 +667,7 @@ class _TransactionFilterChip extends StatelessWidget {
 class _TransactionCard extends StatelessWidget {
   final _TransactionItemData item;
 
-  const _TransactionCard({
-    required this.item,
-  });
+  const _TransactionCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -535,11 +689,7 @@ class _TransactionCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             alignment: Alignment.center,
-            child: Icon(
-              item.icon,
-              color: item.iconColor,
-              size: 22,
-            ),
+            child: Icon(item.icon, color: item.iconColor, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(

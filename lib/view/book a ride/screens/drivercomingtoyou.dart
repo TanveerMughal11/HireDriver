@@ -1,12 +1,18 @@
-import 'dart:math' as math;
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:hire_driver/utils/app_colors.dart';
+import 'package:hire_driver/view/book%20a%20ride/services/bookaride.dart';
 import 'package:hire_driver/view/book%20a%20ride/provider/drivercomingtoyou.dart';
 import 'package:hire_driver/view/book%20a%20ride/screens/drivertravling.dart';
+import 'package:hire_driver/view/book%20a%20ride/screens/riderrating.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 class DriverComingScreen extends StatefulWidget {
-  const DriverComingScreen({super.key});
+  final String? rideId;
+
+  const DriverComingScreen({super.key, this.rideId});
 
   @override
   State<DriverComingScreen> createState() => _DriverComingScreenState();
@@ -15,6 +21,18 @@ class DriverComingScreen extends StatefulWidget {
 class _DriverComingScreenState extends State<DriverComingScreen> {
   String? selectedCancelReason;
   final TextEditingController otherReasonController = TextEditingController();
+  final MapController _mapController = MapController();
+  Timer? _rideRefreshTimer;
+  bool isLoadingRide = true;
+  String riderInitial = 'R';
+  String riderName = 'Rider';
+  String riderRating = '4.8';
+  String vehicleInfo = 'Vehicle details will appear here';
+  String riderStatus = 'Preparing your pickup details';
+  String pickupAddress = 'Pickup location';
+  LatLng pickupPoint = const LatLng(31.5204, 74.3587);
+  bool hasPickupLocation = false;
+  bool _hasNavigatedFromRideState = false;
 
   final List<String> cancelReasons = [
     "Driver is too far away",
@@ -34,25 +52,275 @@ class _DriverComingScreenState extends State<DriverComingScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<DriverComingProvider>().startDriverComing();
+      _loadRideDetails();
+      _rideRefreshTimer?.cancel();
+      if (widget.rideId != null && widget.rideId!.isNotEmpty) {
+        _rideRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+          if (mounted) {
+            _loadRideDetails();
+          }
+        });
+      }
     });
 
-    Future.delayed(const Duration(seconds: 10), () {
-      if (!mounted) return;
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const OngoingRideScreen(),
-        ),
-      );
-    });
   }
 
   @override
   void dispose() {
+    _rideRefreshTimer?.cancel();
     context.read<DriverComingProvider>().clear();
     otherReasonController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRideDetails() async {
+    final rideId = widget.rideId;
+
+    if (rideId == null || rideId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        isLoadingRide = false;
+      });
+      return;
+    }
+
+    try {
+      final result = await RideApiService.getRideRequest(rideId: rideId);
+      final ride = result['data']?['ride'];
+
+      if (!mounted) return;
+
+      final rideMap = _asMap(ride);
+      final selectedRider = _acceptedRiderFromRide(rideMap);
+      final pickup = _asMap(rideMap['pickup']);
+      final vehicleType = rideMap['vehicleType']?.toString() ?? 'Ride';
+      final nextPickupAddress =
+          pickup['address']?.toString().trim().isNotEmpty == true
+          ? pickup['address'].toString()
+          : 'Pickup location';
+      final parsedPickup = _parseLatLng(pickup);
+      final nextRiderName = _firstString(
+        selectedRider,
+        const ['riderName', 'driverName', 'name', 'fullName'],
+        fallback: 'Accepted rider',
+      );
+      final nestedUser = _asMap(
+        selectedRider['rider'] ?? selectedRider['driver'] ?? selectedRider['user'],
+      );
+      final displayRiderName = nextRiderName == 'Accepted rider'
+          ? _firstString(
+              nestedUser,
+              const ['name', 'fullName', 'riderName', 'driverName'],
+              fallback: nextRiderName,
+            )
+          : nextRiderName;
+      final initialSource = _firstString(
+        selectedRider,
+        const ['avatarInitial'],
+        fallback: displayRiderName,
+      );
+      final nextRating = _ratingFrom(selectedRider, nestedUser);
+      final etaMinutes = selectedRider['etaMinutes'] ?? nestedUser['etaMinutes'];
+      final vehicleDetails = [
+        selectedRider['vehicleName'],
+        selectedRider['vehicleColor'],
+        selectedRider['vehiclePlate'],
+      ]
+          .map((part) => part?.toString().trim() ?? '')
+          .where((part) => part.isNotEmpty)
+          .join(' / ');
+      final vehicleParts = [
+        vehicleType.toUpperCase(),
+        vehicleDetails,
+        if (etaMinutes != null) '$etaMinutes min away',
+        'Pickup: $nextPickupAddress',
+      ].where((part) => part.trim().isNotEmpty).toList();
+
+      setState(() {
+        riderInitial = initialSource.isNotEmpty
+            ? initialSource.substring(0, 1).toUpperCase()
+            : 'R';
+        riderName = displayRiderName;
+        riderRating = nextRating;
+        vehicleInfo = vehicleParts.join(' - ');
+        riderStatus =
+            rideMap['passengerUpdate']?['message']?.toString() ??
+            'Rider accepted your ride and is coming.';
+        pickupAddress = nextPickupAddress;
+        if (parsedPickup != null) {
+          pickupPoint = parsedPickup;
+          hasPickupLocation = true;
+        }
+        isLoadingRide = false;
+      });
+
+      if (parsedPickup != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _mapController.move(parsedPickup, 16);
+        });
+      }
+
+      _handleRideStage(rideMap);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        isLoadingRide = false;
+      });
+    }
+  }
+
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return {};
+  }
+
+  Map<String, dynamic> _acceptedRiderFromRide(dynamic ride) {
+    final rideMap = _asMap(ride);
+    final selectedRider = _asMap(rideMap['selectedRider']);
+    if (selectedRider.isNotEmpty) return selectedRider;
+
+    final offers = rideMap['driverOffers'];
+    if (offers is List) {
+      for (final offer in offers) {
+        final offerMap = _asMap(offer);
+        if (offerMap['status']?.toString().toLowerCase() == 'accepted') {
+          return offerMap;
+        }
+      }
+    }
+
+    return {};
+  }
+
+  void _handleRideStage(Map<String, dynamic> ride) {
+    if (_hasNavigatedFromRideState) return;
+
+    if (_isRideCompleted(ride)) {
+      _hasNavigatedFromRideState = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RideReviewScreen(rideId: widget.rideId),
+          ),
+        );
+      });
+      return;
+    }
+
+    if (_isRideStarted(ride)) {
+      _hasNavigatedFromRideState = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OngoingRideScreen(rideId: widget.rideId),
+          ),
+        );
+      });
+    }
+  }
+
+  bool _isRideStarted(Map<String, dynamic> ride) {
+    final status = ride['status']?.toString().toLowerCase() ?? '';
+    final passengerUpdate = _asMap(ride['passengerUpdate']);
+    final decision =
+        passengerUpdate['decision']?.toString().toLowerCase() ?? '';
+
+    return status == 'started' ||
+        status == 'ongoing' ||
+        status == 'in_progress' ||
+        status == 'in-progress' ||
+        status == 'traveling' ||
+        status == 'travelling' ||
+        status == 'enroute' ||
+        status == 'en_route' ||
+        status == 'onride' ||
+        status == 'on_ride' ||
+        status == 'on_trip' ||
+        status == 'picked_up' ||
+        status == 'active' ||
+        decision == 'started' ||
+        decision == 'ride_started' ||
+        passengerUpdate['started'] == true ||
+        passengerUpdate['rideStarted'] == true ||
+        passengerUpdate['startedAt'] != null;
+  }
+
+  bool _isRideCompleted(Map<String, dynamic> ride) {
+    final status = ride['status']?.toString().toLowerCase() ?? '';
+    final passengerUpdate = _asMap(ride['passengerUpdate']);
+    final decision =
+        passengerUpdate['decision']?.toString().toLowerCase() ?? '';
+
+    return status == 'completed' ||
+        status == 'complete' ||
+        status == 'ended' ||
+        status == 'finished' ||
+        status == 'ride_completed' ||
+        decision == 'completed' ||
+        decision == 'ended' ||
+        passengerUpdate['completed'] == true ||
+        passengerUpdate['ended'] == true ||
+        passengerUpdate['completedAt'] != null ||
+        passengerUpdate['endedAt'] != null;
+  }
+
+  String _firstString(
+    Map<String, dynamic> source,
+    List<String> keys, {
+    required String fallback,
+  }) {
+    for (final key in keys) {
+      final value = source[key]?.toString().trim();
+      if (value != null && value.isNotEmpty) return value;
+    }
+    return fallback;
+  }
+
+  String _ratingFrom(
+    Map<String, dynamic> rider,
+    Map<String, dynamic> nestedUser,
+  ) {
+    final rating =
+        rider['rating'] ??
+        rider['averageRating'] ??
+        nestedUser['rating'] ??
+        nestedUser['averageRating'];
+
+    if (rating is num) return rating.toStringAsFixed(1);
+    return '4.8';
+  }
+
+  LatLng? _parseLatLng(Map<String, dynamic> location) {
+    final coordinates = _asMap(location['coordinates']);
+    final lat =
+        location['lat'] ??
+        location['latitude'] ??
+        coordinates['lat'] ??
+        coordinates['latitude'];
+    final lng =
+        location['lng'] ??
+        location['lon'] ??
+        location['longitude'] ??
+        coordinates['lng'] ??
+        coordinates['lon'] ??
+        coordinates['longitude'];
+
+    if (lat is! num || lng is! num) return null;
+    return LatLng(lat.toDouble(), lng.toDouble());
+  }
+
+  Future<void> _refreshRideDetailsManually() async {
+    await _loadRideDetails();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Ride status refreshed')));
   }
 
   void _showCancelReasonSheet() {
@@ -146,10 +414,7 @@ class _DriverComingScreenState extends State<DriverComingScreen> {
                     child: OutlinedButton(
                       onPressed: _showCancelReasonSheet,
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                          color: Colors.red,
-                          width: 1.4,
-                        ),
+                        side: const BorderSide(color: Colors.red, width: 1.4),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18),
                         ),
@@ -183,15 +448,23 @@ class _DriverComingScreenState extends State<DriverComingScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            const Positioned.fill(
-              child: _MapArea(),
+            Positioned.fill(
+              child: _MapArea(
+                mapController: _mapController,
+                pickupPoint: pickupPoint,
+                pickupAddress: pickupAddress,
+                hasPickupLocation: hasPickupLocation,
+              ),
             ),
 
             Positioned(
               top: 12,
               left: 12,
               right: 12,
-              child: _TopStatusCard(percent: percent),
+              child: _TopStatusCard(
+                percent: percent,
+                onRefresh: _refreshRideDetailsManually,
+              ),
             ),
 
             Positioned(
@@ -220,7 +493,14 @@ class _DriverComingScreenState extends State<DriverComingScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const _DriverInfoCard(),
+                    _DriverInfoCard(
+                      isLoading: isLoadingRide,
+                      riderInitial: riderInitial,
+                      riderName: riderName,
+                      riderRating: riderRating,
+                      vehicleInfo: vehicleInfo,
+                      riderStatus: riderStatus,
+                    ),
                     const SizedBox(height: 14),
                     _PickupProgressCard(progress: provider.driverProgress),
                     const SizedBox(height: 14),
@@ -233,7 +513,8 @@ class _DriverComingScreenState extends State<DriverComingScreen> {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const OngoingRideScreen(),
+                              builder: (_) =>
+                                  OngoingRideScreen(rideId: widget.rideId),
                             ),
                           );
                         },
@@ -263,10 +544,7 @@ class _DriverComingScreenState extends State<DriverComingScreen> {
                       child: OutlinedButton(
                         onPressed: _showCancelReasonSheet,
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: Colors.red,
-                            width: 1.4,
-                          ),
+                          side: const BorderSide(color: Colors.red, width: 1.4),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
                           ),
@@ -294,10 +572,9 @@ class _DriverComingScreenState extends State<DriverComingScreen> {
 
 class _TopStatusCard extends StatelessWidget {
   final int percent;
+  final VoidCallback onRefresh;
 
-  const _TopStatusCard({
-    required this.percent,
-  });
+  const _TopStatusCard({required this.percent, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
@@ -318,11 +595,7 @@ class _TopStatusCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.local_taxi_rounded,
-            color: AppColors.primary,
-            size: 28,
-          ),
+          Icon(Icons.local_taxi_rounded, color: AppColors.primary, size: 28),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -358,6 +631,16 @@ class _TopStatusCard extends StatelessWidget {
               color: Colors.deepOrange.shade400,
             ),
           ),
+          const SizedBox(width: 6),
+          IconButton(
+            onPressed: onRefresh,
+            tooltip: 'Refresh status',
+            icon: Icon(
+              Icons.refresh_rounded,
+              color: AppColors.text1(context),
+              size: 20,
+            ),
+          ),
         ],
       ),
     );
@@ -365,7 +648,21 @@ class _TopStatusCard extends StatelessWidget {
 }
 
 class _DriverInfoCard extends StatelessWidget {
-  const _DriverInfoCard();
+  final bool isLoading;
+  final String riderInitial;
+  final String riderName;
+  final String riderRating;
+  final String vehicleInfo;
+  final String riderStatus;
+
+  const _DriverInfoCard({
+    required this.isLoading,
+    required this.riderInitial,
+    required this.riderName,
+    required this.riderRating,
+    required this.vehicleInfo,
+    required this.riderStatus,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +681,7 @@ class _DriverInfoCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const _DriverAvatar(),
+          _DriverAvatar(initial: riderInitial, rating: riderRating),
           const SizedBox(width: 12),
 
           Expanded(
@@ -392,7 +689,7 @@ class _DriverInfoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Zain UI Abideen",
+                  isLoading ? 'Loading rider details...' : riderName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -404,17 +701,29 @@ class _DriverInfoCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Row(
                   children: [
-                    const Icon(Icons.star_rounded,
-                        color: Colors.amber, size: 16),
-                    const Icon(Icons.star_rounded,
-                        color: Colors.amber, size: 16),
-                    const Icon(Icons.star_rounded,
-                        color: Colors.amber, size: 16),
-                    const Icon(Icons.star_half_rounded,
-                        color: Colors.amber, size: 16),
+                    const Icon(
+                      Icons.star_rounded,
+                      color: Colors.amber,
+                      size: 16,
+                    ),
+                    const Icon(
+                      Icons.star_rounded,
+                      color: Colors.amber,
+                      size: 16,
+                    ),
+                    const Icon(
+                      Icons.star_rounded,
+                      color: Colors.amber,
+                      size: 16,
+                    ),
+                    const Icon(
+                      Icons.star_half_rounded,
+                      color: Colors.amber,
+                      size: 16,
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      "4.8",
+                      riderRating,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -425,12 +734,23 @@ class _DriverInfoCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "Honda Civic · Grey · LHR-5678",
+                  isLoading ? 'Loading ride information...' : vehicleInfo,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12.5,
                     color: AppColors.text2(context),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isLoading ? '' : riderStatus,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -461,9 +781,7 @@ class _DriverInfoCard extends StatelessWidget {
 class _PickupProgressCard extends StatelessWidget {
   final double progress;
 
-  const _PickupProgressCard({
-    required this.progress,
-  });
+  const _PickupProgressCard({required this.progress});
 
   @override
   Widget build(BuildContext context) {
@@ -476,9 +794,7 @@ class _PickupProgressCard extends StatelessWidget {
             ? const Color(0xFF1D2B22)
             : const Color(0xFFEFFAF3),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.secondary.withOpacity(0.45),
-        ),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: Column(
         children: [
@@ -552,7 +868,10 @@ class _PickupProgressCard extends StatelessWidget {
 }
 
 class _DriverAvatar extends StatelessWidget {
-  const _DriverAvatar();
+  final String initial;
+  final String rating;
+
+  const _DriverAvatar({required this.initial, required this.rating});
 
   @override
   Widget build(BuildContext context) {
@@ -564,15 +883,12 @@ class _DriverAvatar extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: LinearGradient(
-              colors: [
-                AppColors.primary,
-                Colors.cyan.shade500,
-              ],
+              colors: [AppColors.primary, Colors.cyan.shade500],
             ),
           ),
           alignment: Alignment.center,
-          child: const Text(
-            "Z",
+          child: Text(
+            initial,
             style: TextStyle(
               fontSize: 25,
               fontWeight: FontWeight.w900,
@@ -589,8 +905,8 @@ class _DriverAvatar extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: AppColors.card(context), width: 2),
             ),
-            child: const Text(
-              "★4.8",
+            child: Text(
+              rating,
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
@@ -636,116 +952,145 @@ class _CircleActionButton extends StatelessWidget {
 }
 
 class _MapArea extends StatelessWidget {
-  const _MapArea();
+  final MapController mapController;
+  final LatLng pickupPoint;
+  final String pickupAddress;
+  final bool hasPickupLocation;
+
+  const _MapArea({
+    required this.mapController,
+    required this.pickupPoint,
+    required this.pickupAddress,
+    required this.hasPickupLocation,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        CustomPaint(
-          size: const Size(double.infinity, double.infinity),
-          painter: _MapPainter(
-            isDark: Theme.of(context).brightness == Brightness.dark,
+        FlutterMap(
+          mapController: mapController,
+          options: MapOptions(
+            initialCenter: pickupPoint,
+            initialZoom: 16,
+            minZoom: 5,
+            maxZoom: 18,
           ),
-        ),
-
-        Positioned.fill(
-          child: CustomPaint(
-            painter: _RoutePainter(),
-          ),
-        ),
-
-        Positioned(
-          left: 145,
-          top: 230,
-          child: _PinMarker(
-            color: Colors.deepOrange.shade400,
-            child: const Icon(
-              Icons.person_pin_circle_rounded,
-              size: 18,
-              color: AppColors.white,
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.hire_driver',
             ),
-          ),
-        ),
-
-        Positioned(
-          left: 250,
-          top: 120,
-          child: _PinMarker(
-            color: const Color(0xFF315EEC),
-            child: const Text(
-              "🚙",
-              style: TextStyle(fontSize: 15),
-            ),
-          ),
-        ),
-
-        Positioned(
-          left: 175,
-          top: 175,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.card(context),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 8,
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: pickupPoint,
+                  width: 82,
+                  height: 82,
+                  alignment: Alignment.center,
+                  child: _MapPickupMarker(hasPickupLocation: hasPickupLocation),
                 ),
               ],
             ),
-            child: Text(
-              "Driver coming",
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: AppColors.text1(context),
-              ),
+          ],
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          top: 92,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.card(context),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(
+                    Theme.of(context).brightness == Brightness.dark
+                        ? 0.28
+                        : 0.10,
+                  ),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.my_location_rounded,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    pickupAddress,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.text1(context),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
+        ),
+        const Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          child: IgnorePointer(child: Center(child: _MapCenterRing())),
         ),
       ],
     );
   }
 }
 
-class _PinMarker extends StatelessWidget {
-  final Color color;
-  final Widget child;
+class _MapPickupMarker extends StatelessWidget {
+  final bool hasPickupLocation;
 
-  const _PinMarker({
-    required this.color,
-    required this.child,
-  });
+  const _MapPickupMarker({required this.hasPickupLocation});
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 36,
-          height: 36,
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
-            color: color,
+            color: hasPickupLocation ? Colors.deepOrange.shade400 : Colors.grey,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.28),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
+                color: (hasPickupLocation
+                        ? Colors.deepOrange.shade400
+                        : Colors.grey)
+                    .withOpacity(0.35),
+                blurRadius: 14,
+                spreadRadius: 2,
               ),
             ],
           ),
           alignment: Alignment.center,
-          child: child,
+          child: const Icon(
+            Icons.person_pin_circle_rounded,
+            color: AppColors.white,
+            size: 24,
+          ),
         ),
         Container(
-          width: 12,
-          height: 12,
-          transform: Matrix4.rotationZ(0.8),
+          width: 13,
+          height: 13,
+          transform: Matrix4.rotationZ(0.785398),
           decoration: BoxDecoration(
-            color: color,
+            color: hasPickupLocation ? Colors.deepOrange.shade400 : Colors.grey,
             borderRadius: BorderRadius.circular(3),
           ),
         ),
@@ -754,110 +1099,19 @@ class _PinMarker extends StatelessWidget {
   }
 }
 
-class _RoutePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.deepOrange.shade400
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
-    const start = Offset(262, 138);
-    const end = Offset(162, 246);
-
-    _drawDashedLine(canvas, start, end, paint);
-  }
-
-  void _drawDashedLine(Canvas canvas, Offset start, Offset end, Paint paint) {
-    const dashWidth = 10.0;
-    const dashSpace = 6.0;
-
-    final dx = end.dx - start.dx;
-    final dy = end.dy - start.dy;
-
-    final distance = math.sqrt(dx * dx + dy * dy);
-    final angle = (end - start).direction;
-
-    double drawn = 0;
-
-    while (drawn < distance) {
-      final from = Offset(
-        start.dx + math.cos(angle) * drawn,
-        start.dy + math.sin(angle) * drawn,
-      );
-
-      final to = Offset(
-        start.dx + math.cos(angle) * (drawn + dashWidth).clamp(0, distance),
-        start.dy + math.sin(angle) * (drawn + dashWidth).clamp(0, distance),
-      );
-
-      canvas.drawLine(from, to, paint);
-      drawn += dashWidth + dashSpace;
-    }
-  }
+class _MapCenterRing extends StatelessWidget {
+  const _MapCenterRing();
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _MapPainter extends CustomPainter {
-  final bool isDark;
-
-  _MapPainter({
-    required this.isDark,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = isDark
-          ? AppColors.secondary.withOpacity(0.15)
-          : const Color(0xFFBBC8B8).withOpacity(0.35)
-      ..strokeWidth = 1;
-
-    final roadPaint = Paint()
-      ..color = isDark ? Colors.white.withOpacity(0.13) : Colors.white;
-
-    final dashPaint = Paint()
-      ..color = isDark ? Colors.white.withOpacity(0.25) : const Color(0xFFD0D4DD)
-      ..strokeWidth = 2;
-
-    final parkPaint = Paint()
-      ..color = isDark ? const Color(0xFF20351F) : const Color(0xFFC3DDBB);
-
-    final bgPaint = Paint()
-      ..color = isDark ? const Color(0xFF121212) : AppColors.background;
-
-    canvas.drawRect(Offset.zero & size, bgPaint);
-
-    for (double x = 0; x < size.width; x += 24) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-
-    for (double y = 0; y < size.height; y += 24) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    canvas.drawRect(Rect.fromLTWH(0, 110, size.width, 14), roadPaint);
-    canvas.drawRect(Rect.fromLTWH(0, 225, size.width, 14), roadPaint);
-    canvas.drawRect(Rect.fromLTWH(72, 0, 14, size.height), roadPaint);
-    canvas.drawRect(Rect.fromLTWH(252, 0, 14, size.height), roadPaint);
-
-    for (double x = 0; x < size.width; x += 28) {
-      canvas.drawLine(Offset(x, 117), Offset(x + 16, 117), dashPaint);
-    }
-
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(size.width - 82, 290, 56, 38),
-        const Radius.circular(12),
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.primary.withOpacity(0.12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.28)),
       ),
-      parkPaint,
     );
-  }
-
-  @override
-  bool shouldRepaint(covariant _MapPainter oldDelegate) {
-    return oldDelegate.isDark != isDark;
   }
 }

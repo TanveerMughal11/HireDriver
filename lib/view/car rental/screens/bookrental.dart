@@ -263,7 +263,7 @@ Future<void> _pickDate(BuildContext context, bool isPickup) async {
                                 Switch(
                                   value: provider.addInsurance,
                                   onChanged: provider.updateInsurance,
-                                  activeColor: AppColors.primary,
+                                  activeThumbColor: AppColors.primary,
                                 ),
                               ],
                             ),

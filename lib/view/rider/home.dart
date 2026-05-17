@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+
 class RiderHomeScreen extends StatefulWidget {
   const RiderHomeScreen({super.key});
 
@@ -19,101 +20,111 @@ class RiderHomeScreen extends StatefulWidget {
 class _RiderHomeScreenState extends State<RiderHomeScreen> {
   String userName = "Rider";
   bool isOnline = false;
-bool isLoading = true;
+  bool isLoading = true;
+  Timer? _refreshTimer;
 
-List<dynamic> incomingRequests = [];
+  List<dynamic> incomingRequests = [];
 
-String bannerText = '';
+  String bannerText = '';
 
-String earnings = 'PKR 0';
-String completedTrips = '0';
+  String earnings = 'PKR 0';
+  String completedTrips = '0';
 
-String rating = '0';
-String trips = '0';
-String onlineHours = '0';
-@override
-void initState() {
-  super.initState();
-  _loadDashboard();
-}
-Future<void> _updateAvailability(bool value) async {
-  final oldValue = isOnline;
-
-  setState(() {
-    isOnline = value;
-  });
-
-  try {
-    final data = await RiderRequestsApi.updateAvailability(
-      isOnline: value,
-      liveLocationActive: value,
-    );
-
-    final availability = data['availability'] ?? data;
-
-    setState(() {
-      isOnline = availability['isOnline'] ?? value;
-    });
-  } catch (e) {
-    setState(() {
-      isOnline = oldValue;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          e.toString().replaceAll('Exception: ', ''),
-        ),
-      ),
-    );
-  }
-}
-Future<void> _loadDashboard() async {
-  try {
-  final data = await RiderRequestsApi.getDashboard();
-final incomingData = await RiderRequestsApi.getIncomingRequests();
-
-    final dashboard = data['dashboard'] ?? {};
-
-    final rider = dashboard['rider'] ?? {};
-    final availability = rider['availability'] ?? {};
-
-    final todayEarnings = dashboard['todayEarnings'] ?? {};
-    final stats = dashboard['stats'] ?? {};
-    final pendingSummary = dashboard['pendingSummary'] ?? {};
-
-    setState(() {
-      userName = rider['name'] ?? 'Rider';
-
-      isOnline = availability['isOnline'] ?? false;
-
-      earnings =
-          '${todayEarnings['currency'] ?? 'PKR'} ${todayEarnings['amount'] ?? 0}';
-
-      completedTrips =
-          '${todayEarnings['completedTripsToday'] ?? 0}';
-
-      rating = '${stats['rating'] ?? 0}';
-      trips = '${stats['trips'] ?? 0}';
-      onlineHours = '${stats['onlineHours'] ?? 0}h';
-
-  bannerText =
-    incomingData['bannerText'] ??
-    pendingSummary['bannerText'] ??
-    '';
-
-incomingRequests =
-    incomingData['incomingRequests'] ??
-    dashboard['incomingRequests'] ??
-    [];
-      isLoading = false;
-    });
-  } catch (e) {
-    setState(() {
-      isLoading = false;
+  String rating = '0';
+  String trips = '0';
+  String onlineHours = '0';
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboard();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      _loadDashboard(silent: true);
     });
   }
-}
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _updateAvailability(bool value) async {
+    final oldValue = isOnline;
+
+    setState(() {
+      isOnline = value;
+    });
+
+    try {
+      final data = await RiderRequestsApi.updateAvailability(
+        isOnline: value,
+        liveLocationActive: value,
+      );
+
+      final availability = data['availability'] ?? data;
+
+      setState(() {
+        isOnline = availability['isOnline'] ?? value;
+      });
+    } catch (e) {
+      setState(() {
+        isOnline = oldValue;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _loadDashboard({bool silent = false}) async {
+    try {
+      final data = await RiderRequestsApi.getDashboard();
+      final incomingData = await RiderRequestsApi.getIncomingRequests();
+
+      final dashboard = data['dashboard'] ?? {};
+
+      final rider = dashboard['rider'] ?? {};
+      final availability = rider['availability'] ?? {};
+
+      final todayEarnings = dashboard['todayEarnings'] ?? {};
+      final stats = dashboard['stats'] ?? {};
+      final pendingSummary = dashboard['pendingSummary'] ?? {};
+
+      if (!mounted) return;
+
+      setState(() {
+        userName = rider['name'] ?? 'Rider';
+
+        isOnline = availability['isOnline'] ?? false;
+
+        earnings =
+            '${todayEarnings['currency'] ?? 'PKR'} ${todayEarnings['amount'] ?? 0}';
+
+        completedTrips = '${todayEarnings['completedTripsToday'] ?? 0}';
+
+        rating = '${stats['rating'] ?? 0}';
+        trips = '${stats['trips'] ?? 0}';
+        onlineHours = '${stats['onlineHours'] ?? 0}h';
+
+        bannerText =
+            incomingData['bannerText'] ?? pendingSummary['bannerText'] ?? '';
+
+        incomingRequests =
+            incomingData['incomingRequests'] ??
+            dashboard['incomingRequests'] ??
+            [];
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userString = prefs.getString('userData');
@@ -126,59 +137,99 @@ incomingRequests =
     }
   }
 
-void _openRequestDetail(String rideRequestId) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => DriverRequestDetailScreen(
-        rideRequestId: rideRequestId,
-      ),
-    ),
-  );
-}
+  void _openRequestDetail(String rideRequestId) {
+    if (rideRequestId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid ride request. Please refresh dashboard.'),
+        ),
+      );
+      return;
+    }
 
-void _openNavigation() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => DriverNavigationScreen(
-        navigationData: {
-          "map": {
-            "pickupMarker": {
-              "address": "10, Lahore",
-              "coordinates": {
-                "lat": 31.4719997,
-                "lng": 74.36066,
-              }
-            }
-          },
-          "navigation": {
-            "etaMinutes": 8,
-            "locationLabel": "10, Lahore",
-            "tripMeta": "0.6 km • 5 min",
-            "actionButton": "Arrived at Pickup"
-          }
-        },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DriverRequestDetailScreen(rideRequestId: rideRequestId),
       ),
-    ),
-  );
-}
+    ).then((value) {
+      if (value == true && mounted) {
+        _loadDashboard(silent: true);
+      }
+    });
+  }
+
+  Future<void> _declineRequestFromCard(String rideRequestId) async {
+    try {
+      final data = await RiderRequestsApi.declineRideRequest(
+        rideRequestId: rideRequestId,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        incomingRequests.removeWhere((req) {
+          final id =
+              req['requestId']?.toString() ?? req['_id']?.toString() ?? '';
+          return id == rideRequestId;
+        });
+        bannerText = incomingRequests.isNotEmpty
+            ? '${incomingRequests.length} new ride requests waiting for response'
+            : 'No pending requests right now';
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            data['message'] ?? 'Ride request declined successfully',
+          ),
+        ),
+      );
+
+      _loadDashboard(silent: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
+  }
+
+  void _openNavigation() {
+    final firstRequest = incomingRequests.isNotEmpty
+        ? Map<String, dynamic>.from(incomingRequests.first as Map)
+        : <String, dynamic>{};
+    final rideRequestId =
+        (firstRequest['requestId'] ?? firstRequest['id'] ?? '').toString();
+
+    if (rideRequestId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active request available for navigation'),
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DriverNavigationScreen(rideRequestId: rideRequestId),
+      ),
+    );
+  }
 
   void _openEarnings() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const RiderEarningsScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const RiderEarningsScreen()),
     );
   }
 
   void _openReviews() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const DriverReviewsScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const DriverReviewsScreen()),
     );
   }
 
@@ -186,9 +237,7 @@ void _openNavigation() {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      bottomNavigationBar: const RiderBottomNavBar(
-        currentIndex: 0,
-      ),
+      bottomNavigationBar: const RiderBottomNavBar(currentIndex: 0),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -199,25 +248,27 @@ void _openNavigation() {
               _DriverTopHeader(
                 userName: userName,
                 isOnline: isOnline,
-           onToggle: _updateAvailability,
+                onToggle: _updateAvailability,
               ),
 
               const SizedBox(height: 16),
-           _TodayEarningsCard(
-  earnings: earnings,
-  completedTrips: completedTrips,
-),
+              _TodayEarningsCard(
+                earnings: earnings,
+                completedTrips: completedTrips,
+              ),
               const SizedBox(height: 16),
-        _DriverStatsRow(
-  rating: rating,
-  trips: trips,
-  onlineHours: onlineHours,
-),
+              _DriverStatsRow(
+                rating: rating,
+                trips: trips,
+                onlineHours: onlineHours,
+              ),
               const SizedBox(height: 22),
               Container(
                 width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.orange.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(16),
@@ -233,7 +284,7 @@ void _openNavigation() {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                 bannerText,
+                        bannerText,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -250,30 +301,37 @@ void _openNavigation() {
                 subtitle: 'Accept or review nearby book ride requests',
               ),
               const SizedBox(height: 12),
-Column(
-  children: incomingRequests.map((req) {
-    final user = req['user'] ?? {};
-    final pickup = req['pickup'] ?? {};
-    final dropoff = req['dropoff'] ?? {};
-    final fare = req['fare'] ?? {};
+              Column(
+                children: incomingRequests.map((req) {
+                  final user = req['user'] ?? {};
+                  final pickup = req['pickup'] ?? {};
+                  final dropoff = req['dropoff'] ?? {};
+                  final fare = req['fare'] ?? {};
+                  final requestId =
+                      req['requestId']?.toString() ??
+                      req['_id']?.toString() ??
+                      '';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: _IncomingRequestCard(
-        passengerName: user['name'] ?? '',
-        tripType: req['subtitle'] ?? '',
-        pickup: pickup['address'] ?? '',
-        dropoff: dropoff['address'] ?? '',
-        fare:
-            '${fare['currency'] ?? 'PKR'} ${fare['amount'] ?? 0}',
-        distance: req['tripMeta'] ?? '',
-        onTap: () => _openRequestDetail(
-          req['requestId'] ?? '',
-        ),
-      ),
-    );
-  }).toList(),
-),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _IncomingRequestCard(
+                      passengerName: user['name'] ?? '',
+                      tripType: req['subtitle'] ?? '',
+                      pickup: pickup['address'] ?? '',
+                      dropoff: dropoff['address'] ?? '',
+                      fare:
+                          '${fare['currency'] ?? 'PKR'} ${fare['amount'] ?? 0}',
+                      distance: req['tripMeta'] ?? '',
+                      onTap: requestId.isEmpty
+                          ? null
+                          : () => _openRequestDetail(requestId),
+                      onDecline: requestId.isEmpty
+                          ? null
+                          : () => _declineRequestFromCard(requestId),
+                    ),
+                  );
+                }).toList(),
+              ),
               const SizedBox(height: 22),
               const _SectionTitle(
                 title: 'Quick Actions',
@@ -361,7 +419,7 @@ class _DriverTopHeader extends StatelessWidget {
               Switch(
                 value: isOnline,
                 onChanged: onToggle,
-                activeColor: Colors.green,
+                activeThumbColor: Colors.green,
               ),
             ],
           ),
@@ -370,36 +428,28 @@ class _DriverTopHeader extends StatelessWidget {
     );
   }
 }
-       
+
 class _DriverMapCard extends StatelessWidget {
   final Map<String, dynamic> review;
 
-  const _DriverMapCard({
-    required this.review,
-  });
+  const _DriverMapCard({required this.review});
 
   @override
   Widget build(BuildContext context) {
     final trip = review['trip'];
 
-    final pickupLat =
-        (trip['pickup']['coordinates']['lat'] as num).toDouble();
-    final pickupLng =
-        (trip['pickup']['coordinates']['lng'] as num).toDouble();
+    final pickupLat = (trip['pickup']['coordinates']['lat'] as num).toDouble();
+    final pickupLng = (trip['pickup']['coordinates']['lng'] as num).toDouble();
 
-    final dropLat =
-        (trip['dropoff']['coordinates']['lat'] as num).toDouble();
-    final dropLng =
-        (trip['dropoff']['coordinates']['lng'] as num).toDouble();
+    final dropLat = (trip['dropoff']['coordinates']['lat'] as num).toDouble();
+    final dropLng = (trip['dropoff']['coordinates']['lng'] as num).toDouble();
 
     return Container(
       height: 220,
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: AppColors.secondary.withOpacity(0.45),
-        ),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -530,10 +580,7 @@ class _MapInfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _MapInfoChip({
-    required this.icon,
-    required this.text,
-  });
+  const _MapInfoChip({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -569,13 +616,13 @@ class _MapInfoChip extends StatelessWidget {
 }
 
 class _TodayEarningsCard extends StatelessWidget {
-final String earnings;
-final String completedTrips;
+  final String earnings;
+  final String completedTrips;
 
-const _TodayEarningsCard({
-  required this.earnings,
-  required this.completedTrips,
-});
+  const _TodayEarningsCard({
+    required this.earnings,
+    required this.completedTrips,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -628,10 +675,7 @@ const _TodayEarningsCard({
                 SizedBox(height: 3),
                 Text(
                   '$completedTrips completed trips today',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
             ),
@@ -643,15 +687,15 @@ const _TodayEarningsCard({
 }
 
 class _DriverStatsRow extends StatelessWidget {
-final String rating;
-final String trips;
-final String onlineHours;
+  final String rating;
+  final String trips;
+  final String onlineHours;
 
-const _DriverStatsRow({
-  required this.rating,
-  required this.trips,
-  required this.onlineHours,
-});
+  const _DriverStatsRow({
+    required this.rating,
+    required this.trips,
+    required this.onlineHours,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -660,7 +704,7 @@ const _DriverStatsRow({
         Expanded(
           child: _MiniStatCard(
             icon: Icons.star_rounded,
-     value: rating,
+            value: rating,
             label: 'Rating',
           ),
         ),
@@ -668,7 +712,7 @@ const _DriverStatsRow({
         Expanded(
           child: _MiniStatCard(
             icon: Icons.route_rounded,
-           value: trips,
+            value: trips,
             label: 'Trips',
           ),
         ),
@@ -676,7 +720,7 @@ const _DriverStatsRow({
         Expanded(
           child: _MiniStatCard(
             icon: Icons.schedule_rounded,
-    value: onlineHours,
+            value: onlineHours,
             label: 'Online',
           ),
         ),
@@ -739,7 +783,8 @@ class _IncomingRequestCard extends StatelessWidget {
   final String dropoff;
   final String fare;
   final String distance;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final VoidCallback? onDecline;
 
   const _IncomingRequestCard({
     required this.passengerName,
@@ -749,6 +794,7 @@ class _IncomingRequestCard extends StatelessWidget {
     required this.fare,
     required this.distance,
     required this.onTap,
+    this.onDecline,
   });
 
   @override
@@ -817,8 +863,10 @@ class _IncomingRequestCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.softBg(context),
                     borderRadius: BorderRadius.circular(50),
@@ -835,20 +883,11 @@ class _IncomingRequestCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            _TripRow(
-              icon: Icons.my_location_rounded,
-              text: pickup,
-            ),
+            _TripRow(icon: Icons.my_location_rounded, text: pickup),
             const SizedBox(height: 8),
-            _TripRow(
-              icon: Icons.location_on_rounded,
-              text: dropoff,
-            ),
+            _TripRow(icon: Icons.location_on_rounded, text: dropoff),
             const SizedBox(height: 8),
-            _TripRow(
-              icon: Icons.route_rounded,
-              text: distance,
-            ),
+            _TripRow(icon: Icons.route_rounded, text: distance),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -864,7 +903,7 @@ class _IncomingRequestCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    onPressed: () {},
+                    onPressed: onDecline,
                     child: const Text(
                       'Decline',
                       style: TextStyle(fontWeight: FontWeight.w700),
@@ -903,10 +942,7 @@ class _TripRow extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _TripRow({
-    required this.icon,
-    required this.text,
-  });
+  const _TripRow({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -1019,10 +1055,7 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _SectionTitle({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionTitle({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -1055,10 +1088,7 @@ class _MapPinBubble extends StatelessWidget {
   final Color color;
   final IconData icon;
 
-  const _MapPinBubble({
-    required this.color,
-    required this.icon,
-  });
+  const _MapPinBubble({required this.color, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -1102,10 +1132,7 @@ class _MapPinBubble extends StatelessWidget {
 class DriverRequestDetailScreen extends StatefulWidget {
   final String rideRequestId;
 
-  const DriverRequestDetailScreen({
-    super.key,
-    required this.rideRequestId,
-  });
+  const DriverRequestDetailScreen({super.key, required this.rideRequestId});
 
   @override
   State<DriverRequestDetailScreen> createState() =>
@@ -1122,83 +1149,77 @@ class _DriverRequestDetailScreenState extends State<DriverRequestDetailScreen> {
     super.initState();
     _fetchReview();
   }
-Future<void> _declineRideRequest() async {
-  try {
-    setState(() {
-      isLoading = true;
-    });
 
-    final data = await RiderRequestsApi.declineRideRequest(
-      rideRequestId: widget.rideRequestId,
-    );
+  Future<void> _declineRideRequest() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
 
-    if (!mounted) return;
+      final data = await RiderRequestsApi.declineRideRequest(
+        rideRequestId: widget.rideRequestId,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          data['message'] ?? 'Ride request declined successfully',
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            data['message'] ?? 'Ride request declined successfully',
+          ),
         ),
-      ),
-    );
+      );
 
-    Navigator.pop(context, true);
-  } catch (e) {
-    setState(() {
-      isLoading = false;
-    });
+      Navigator.pop(context, true);
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          e.toString().replaceAll('Exception: ', ''),
-        ),
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
   }
-}
-Future<void> _acceptRideRequest() async {
-  try {
-    setState(() {
-      isLoading = true;
-    });
 
-    final data = await RiderRequestsApi.acceptRideRequest(
-      rideRequestId: widget.rideRequestId,
-    );
+  Future<void> _acceptRideRequest() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
 
-    if (!mounted) return;
+      final data = await RiderRequestsApi.acceptRideRequest(
+        rideRequestId: widget.rideRequestId,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          data['message'] ?? 'Ride request accepted successfully',
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            data['message'] ?? 'Ride request accepted successfully',
+          ),
         ),
-      ),
-    );
+      );
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DriverNavigationScreen(
-          navigationData: data['navigation'],
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              DriverNavigationScreen(navigationData: data['navigation']),
         ),
-      ),
-    );
-  } catch (e) {
-    setState(() {
-      isLoading = false;
-    });
+      );
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          e.toString().replaceAll('Exception: ', ''),
-        ),
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
   }
-}
+
   Future<void> _fetchReview() async {
     try {
       final data = await RiderRequestsApi.getRideRequestReview(
@@ -1217,32 +1238,16 @@ Future<void> _acceptRideRequest() async {
     }
   }
 
-void _openNavigation() {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => DriverNavigationScreen(
-        navigationData: {
-          "map": {
-            "pickupMarker": {
-              "address": "10, Lahore",
-              "coordinates": {
-                "lat": 31.4719997,
-                "lng": 74.36066,
-              }
-            }
-          },
-          "navigation": {
-            "etaMinutes": 8,
-            "locationLabel": "10, Lahore",
-            "tripMeta": "0.6 km • 5 min",
-            "actionButton": "Arrived at Pickup"
-          }
-        },
+  void _openNavigation() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            DriverNavigationScreen(rideRequestId: widget.rideRequestId),
       ),
-    ),
-  );
-}
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -1371,7 +1376,8 @@ void _openNavigation() {
                   _DetailRow(
                     icon: Icons.route_rounded,
                     title: 'Distance',
-                    value: '${trip['distanceKm']} km • ${trip['durationMinutes']} min',
+                    value:
+                        '${trip['distanceKm']} km • ${trip['durationMinutes']} min',
                   ),
                   const SizedBox(height: 12),
                   _DetailRow(
@@ -1388,9 +1394,9 @@ void _openNavigation() {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-  onPressed: (review?['actions']?['canDecline'] == true)
-    ? _declineRideRequest
-    : null,
+                      onPressed: (review?['actions']?['canDecline'] == true)
+                          ? _declineRideRequest
+                          : null,
                       child: const Text('Decline'),
                     ),
                   ),
@@ -1401,9 +1407,9 @@ void _openNavigation() {
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                       ),
-onPressed: (review?['actions']?['canAccept'] == true)
-    ? _acceptRideRequest
-    : null,
+                      onPressed: (review?['actions']?['canAccept'] == true)
+                          ? _acceptRideRequest
+                          : null,
                       child: const Text('Accept'),
                     ),
                   ),
@@ -1416,7 +1422,6 @@ onPressed: (review?['actions']?['canAccept'] == true)
     );
   }
 }
-
 
 class DriverNavigationScreen extends StatefulWidget {
   final String? rideRequestId;
@@ -1494,11 +1499,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString().replaceAll('Exception: ', ''),
-          ),
-        ),
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
       );
     }
   }
@@ -1573,33 +1574,28 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
       return;
     }
 
-    positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 3,
-      ),
-    ).listen((position) async {
-      final newDriverPoint = LatLng(position.latitude, position.longitude);
+    positionStream =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 3,
+          ),
+        ).listen((position) async {
+          final newDriverPoint = LatLng(position.latitude, position.longitude);
 
-      setState(() {
-        driverPoint = newDriverPoint;
-      });
+          setState(() {
+            driverPoint = newDriverPoint;
+          });
 
-      if (pickupPoint != null) {
-        await _fetchRoute(
-          from: newDriverPoint,
-          to: pickupPoint!,
-        );
-      }
+          if (pickupPoint != null) {
+            await _fetchRoute(from: newDriverPoint, to: pickupPoint!);
+          }
 
-      mapController.move(newDriverPoint, 16.5);
-    });
+          mapController.move(newDriverPoint, 16.5);
+        });
   }
 
-  Future<void> _fetchRoute({
-    required LatLng from,
-    required LatLng to,
-  }) async {
+  Future<void> _fetchRoute({required LatLng from, required LatLng to}) async {
     try {
       final points = await _loadRoutePoints(from: from, to: to);
 
@@ -1635,10 +1631,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
     final coordinates = data['routes'][0]['geometry']['coordinates'] as List;
 
     return coordinates.map<LatLng>((item) {
-      return LatLng(
-        (item[1] as num).toDouble(),
-        (item[0] as num).toDouble(),
-      );
+      return LatLng((item[1] as num).toDouble(), (item[0] as num).toDouble());
     }).toList();
   }
 
@@ -1675,7 +1668,8 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
     final pickup = apiNavigationData?['map']?['pickupMarker'];
 
     final eta = nav?['etaMinutes'] ?? 8;
-    final locationLabel = nav?['locationLabel'] ?? '10, Lahore';
+    final locationLabel =
+        nav?['locationLabel'] ?? pickup?['address'] ?? 'Pickup';
     final tripMeta = nav?['tripMeta'] ?? '0.6 km • 5 min';
     final actionButton = nav?['actionButton'] ?? 'Arrived at Pickup';
 
@@ -1779,9 +1773,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
             decoration: BoxDecoration(
               color: AppColors.card(context),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: AppColors.secondary.withOpacity(0.45),
-              ),
+              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
             ),
             child: Column(
               children: [
@@ -1830,6 +1822,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
     );
   }
 }
+
 class DriverRideActiveScreen extends StatelessWidget {
   final LatLng? pickupPoint;
   final LatLng? dropoffPoint;
@@ -1847,9 +1840,7 @@ class DriverRideActiveScreen extends StatelessWidget {
   void _openComplete(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const DriverCompleteScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const DriverCompleteScreen()),
     );
   }
 
@@ -1861,8 +1852,8 @@ class DriverRideActiveScreen extends StatelessWidget {
     final destinationText = dropoffAddress.isNotEmpty
         ? dropoffAddress
         : dropoffPoint == null
-            ? 'Destination'
-            : '${dropoffPoint!.latitude.toStringAsFixed(5)}, ${dropoffPoint!.longitude.toStringAsFixed(5)}';
+        ? 'Destination'
+        : '${dropoffPoint!.latitude.toStringAsFixed(5)}, ${dropoffPoint!.longitude.toStringAsFixed(5)}';
 
     return Scaffold(
       backgroundColor: AppColors.bg(context),
@@ -1963,9 +1954,7 @@ class DriverRideActiveScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.card(context),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: AppColors.secondary.withOpacity(0.45),
-              ),
+              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withOpacity(0.05),
@@ -2176,9 +2165,7 @@ class RiderEarningsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      bottomNavigationBar: const RiderBottomNavBar(
-        currentIndex: 1,
-      ),
+      bottomNavigationBar: const RiderBottomNavBar(currentIndex: 1),
       appBar: AppBar(
         backgroundColor: AppColors.bg(context),
         surfaceTintColor: Colors.transparent,
@@ -2197,10 +2184,7 @@ class RiderEarningsScreen extends StatelessWidget {
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
-const _TodayEarningsCard(
-  earnings: 'PKR 0',
-  completedTrips: '0',
-),
+            const _TodayEarningsCard(earnings: 'PKR 0', completedTrips: '0'),
             const SizedBox(height: 16),
             Row(
               children: const [
@@ -2241,7 +2225,9 @@ const _TodayEarningsCard(
               decoration: BoxDecoration(
                 color: AppColors.card(context),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+                border: Border.all(
+                  color: AppColors.secondary.withOpacity(0.45),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2320,10 +2306,7 @@ class _BarItem extends StatelessWidget {
   final String label;
   final double height;
 
-  const _BarItem({
-    required this.label,
-    required this.height,
-  });
+  const _BarItem({required this.label, required this.height});
 
   @override
   Widget build(BuildContext context) {
@@ -2355,10 +2338,7 @@ class _PeriodChip extends StatelessWidget {
   final String label;
   final bool selected;
 
-  const _PeriodChip({
-    required this.label,
-    required this.selected,
-  });
+  const _PeriodChip({required this.label, required this.selected});
 
   @override
   Widget build(BuildContext context) {
@@ -2388,9 +2368,7 @@ class DriverReviewsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      bottomNavigationBar: const RiderBottomNavBar(
-        currentIndex: 2,
-      ),
+      bottomNavigationBar: const RiderBottomNavBar(currentIndex: 2),
       appBar: AppBar(
         backgroundColor: AppColors.bg(context),
         surfaceTintColor: Colors.transparent,
@@ -2433,7 +2411,9 @@ class DriverReviewsScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.softBg(context),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+                border: Border.all(
+                  color: AppColors.secondary.withOpacity(0.45),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2485,10 +2465,7 @@ class _ReviewFilterChip extends StatelessWidget {
   final String label;
   final bool selected;
 
-  const _ReviewFilterChip({
-    required this.label,
-    required this.selected,
-  });
+  const _ReviewFilterChip({required this.label, required this.selected});
 
   @override
   Widget build(BuildContext context) {
@@ -2515,10 +2492,7 @@ class _DetailCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
-  const _DetailCard({
-    required this.title,
-    required this.children,
-  });
+  const _DetailCard({required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -2600,10 +2574,7 @@ class _ActionMiniButton extends StatelessWidget {
   final IconData icon;
   final String title;
 
-  const _ActionMiniButton({
-    required this.icon,
-    required this.title,
-  });
+  const _ActionMiniButton({required this.icon, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -2661,10 +2632,7 @@ class _HistoryItem extends StatelessWidget {
               color: AppColors.softBg(context),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.payments_rounded,
-              color: AppColors.primary,
-            ),
+            child: const Icon(Icons.payments_rounded, color: AppColors.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2709,10 +2677,7 @@ class _ReviewCard extends StatelessWidget {
   final String name;
   final String review;
 
-  const _ReviewCard({
-    required this.name,
-    required this.review,
-  });
+  const _ReviewCard({required this.name, required this.review});
 
   @override
   Widget build(BuildContext context) {
@@ -2759,6 +2724,7 @@ class _ReviewCard extends StatelessWidget {
     );
   }
 }
+
 class _GlowPickupMarker extends StatefulWidget {
   const _GlowPickupMarker();
 
@@ -2783,12 +2749,7 @@ class _GlowPickupMarkerState extends State<_GlowPickupMarker>
     animation = Tween<double>(
       begin: 0.9,
       end: 1.12,
-    ).animate(
-      CurvedAnimation(
-        parent: controller,
-        curve: Curves.easeInOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut));
   }
 
   @override

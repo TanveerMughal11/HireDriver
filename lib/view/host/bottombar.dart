@@ -3,7 +3,6 @@ import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/view/car%20rental/screens/mycarlisting.dart';
 import 'package:hire_driver/view/host/earning.dart';
 import 'package:hire_driver/view/host/home.dart';
-import 'package:hire_driver/view/host/listing.dart';
 import 'package:hire_driver/view/host/profile.dart';
 
 class HostBottomNavBar extends StatelessWidget {

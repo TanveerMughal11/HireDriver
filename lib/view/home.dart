@@ -5,7 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:hire_driver/customwidgets/custom_textfields.dart';
 import 'package:hire_driver/utils/app_colors.dart';
 import 'package:hire_driver/customwidgets/bottombar.dart';
+import 'package:hire_driver/customwidgets/tripitem.dart';
 import 'package:hire_driver/view/book%20a%20ride/screens/bookaride.dart';
+
+import 'package:hire_driver/view/book%20a%20ride/services/bookaride.dart';
 import 'package:hire_driver/view/car%20rental/screens/bookrental.dart';
 import 'package:hire_driver/view/car%20rental/screens/carlisting.dart';
 import 'package:hire_driver/view/forms/screen/carlistingform.dart';
@@ -69,9 +72,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       body: const _HomeContent(),
-      bottomNavigationBar: const AppBottomNavBar(
-        currentIndex: 0,
-      ),
+      bottomNavigationBar: const AppBottomNavBar(currentIndex: 0),
     );
   }
 }
@@ -83,33 +84,27 @@ class _HomeContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const _MapBackground(),
+        const _MapBackground(), // map stays in the background
         SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      SizedBox(height: 10),
-                      _TopHeader(),
-                      SizedBox(height: 16),
-                      SizedBox(height: 24),
-                      _PromoCard(),
-                      SizedBox(height: 18),
-                      _SectionTitle(title: 'Our Services'),
-                      SizedBox(height: 14),
-                      _ServiceGrid(),
-                      SizedBox(height: 20),
-                      _RecentStatsCard(),
-                      SizedBox(height: 96),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                SizedBox(height: 10),
+                _TopHeader(),
+                SizedBox(height: 16),
+                _PromoCard(),
+                SizedBox(height: 18),
+                _SectionTitle(title: 'Our Services'),
+                SizedBox(height: 14),
+                _ServiceGrid(),
+                SizedBox(height: 20),
+                _RecentStatsCard(),
+                SizedBox(height: 20), // extra padding at the bottom
+              ],
+            ),
           ),
         ),
       ],
@@ -125,9 +120,7 @@ class _MapBackground extends StatelessWidget {
     return Container(
       height: 260,
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppColors.softBg(context),
-      ),
+      decoration: BoxDecoration(color: AppColors.softBg(context)),
       child: CustomPaint(
         painter: _MapPainter(
           backgroundColor: AppColors.softBg(context),
@@ -206,7 +199,7 @@ class _MapPainter extends CustomPainter {
 }
 
 class _TopHeader extends StatefulWidget {
-  const _TopHeader();
+  const _TopHeader({super.key});
 
   @override
   State<_TopHeader> createState() => _TopHeaderState();
@@ -214,47 +207,133 @@ class _TopHeader extends StatefulWidget {
 
 class _TopHeaderState extends State<_TopHeader> {
   String userName = "User";
+  bool hasNewHistory = false;
+  List<TripItem> latestTrips = [];
 
   @override
   void initState() {
     super.initState();
     loadUser();
+    _loadLatestHistory();
   }
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
-
-    if (hour < 12) {
-      return "Good Morning";
-    } else if (hour < 17) {
-      return "Good Afternoon";
-    } else if (hour < 21) {
-      return "Good Evening";
-    } else {
-      return "Good Night";
-    }
+    if (hour < 12) return "Good Morning";
+    if (hour < 17) return "Good Afternoon";
+    if (hour < 21) return "Good Evening";
+    return "Good Night";
   }
 
   Future<void> loadUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userString = prefs.getString('userData');
-
     if (userString != null) {
       final user = jsonDecode(userString);
-
       setState(() {
         userName = user['name'] ?? "User";
       });
     }
   }
 
+  Future<void> _loadLatestHistory() async {
+    final rideResult = await RideApiService.getMyRideRequests();
+    final hireResult = await RideApiService.getMyHireRequests();
+    final prefs = await SharedPreferences.getInstance();
+
+    final List<TripItem> combinedTrips = [];
+
+    if (rideResult['success'] == true && rideResult['data']['rides'] is List) {
+      combinedTrips.addAll((rideResult['data']['rides'] as List)
+          .map((e) => TripItem.fromRide(Map<String, dynamic>.from(e))));
+    }
+
+    if (hireResult['success'] == true && hireResult['data']['hireRequests'] is List) {
+      combinedTrips.addAll((hireResult['data']['hireRequests'] as List)
+          .map((e) => TripItem.fromHire(Map<String, dynamic>.from(e))));
+    }
+
+    combinedTrips.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    if (!mounted) return;
+
+    setState(() {
+      latestTrips = combinedTrips.take(3).toList();
+      final readHistoryCount = prefs.getInt('readHistoryCount') ?? 0;
+      hasNewHistory = combinedTrips.length > readHistoryCount;
+    });
+  }
+
   void _openProfile(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const ProfileScreen(),
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+  }
+
+  void _openHistoryPreview() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Mark notifications as read
+    setState(() {
+      hasNewHistory = false;
+    });
+
+    // Save total history count
+    await prefs.setInt('readHistoryCount', latestTrips.length);
+
+  showModalBottomSheet(
+  context: context,
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+  ),
+  builder: (context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.5, // 50% of screen height
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (latestTrips.isEmpty)
+              const Text("No recent history")
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: latestTrips.length,
+                  separatorBuilder: (_, __) => const Divider(),
+                  itemBuilder: (context, index) {
+                    final trip = latestTrips[index];
+                    return ListTile(
+                      leading: Icon(trip.icon, color: trip.iconColor),
+                      title: Text(trip.title),
+                      subtitle: Text(trip.route),
+                      trailing: Text(trip.amount),
+                      onTap: () {},
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                );
+              },
+              child: const Text("See More"),
+            ),
+          ],
+        ),
       ),
     );
+  },
+);
   }
 
   @override
@@ -286,9 +365,26 @@ class _TopHeaderState extends State<_TopHeader> {
             ],
           ),
           const Spacer(),
-          _CircleIconButton(
-            icon: Icons.notifications_none_rounded,
-            onTap: () {},
+          Stack(
+            children: [
+              _CircleIconButton(
+                icon: Icons.notifications_none_rounded,
+                onTap: _openHistoryPreview,
+              ),
+              if (hasNewHistory)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 12),
           GestureDetector(
@@ -312,6 +408,31 @@ class _TopHeaderState extends State<_TopHeader> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _CircleIconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.card(context),
+      shape: const CircleBorder(),
+      elevation: 0,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          height: 44,
+          width: 44,
+          child: Icon(icon, color: AppColors.text1(context)),
+        ),
       ),
     );
   }
@@ -493,10 +614,7 @@ class _PromoCardState extends State<_PromoCard> {
   Widget build(BuildContext context) {
     final banners = <Widget>[
       const _Banner1(),
-      if (!bookRideOfferClaimed)
-        _Banner2(
-          onClaimOffer: _claimBookRideOffer,
-        ),
+      if (!bookRideOfferClaimed) _Banner2(onClaimOffer: _claimBookRideOffer),
     ];
 
     return Column(
@@ -654,9 +772,7 @@ class _Banner1 extends StatelessWidget {
 class _Banner2 extends StatelessWidget {
   final VoidCallback onClaimOffer;
 
-  const _Banner2({
-    required this.onClaimOffer,
-  });
+  const _Banner2({required this.onClaimOffer});
 
   @override
   Widget build(BuildContext context) {
@@ -785,9 +901,7 @@ class _Banner2 extends StatelessWidget {
 class _PromoIndicator extends StatelessWidget {
   final int activeIndex;
 
-  const _PromoIndicator({
-    required this.activeIndex,
-  });
+  const _PromoIndicator({required this.activeIndex});
 
   @override
   Widget build(BuildContext context) {
@@ -841,18 +955,14 @@ class _ServiceGrid extends StatelessWidget {
   void _openBookRide(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const BookRideScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const BookRideScreen()),
     );
   }
 
   void _openHireDriver(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const HireDriverTypeScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const HireDriverTypeScreen()),
     );
   }
 
@@ -898,9 +1008,7 @@ class _ServiceGrid extends StatelessWidget {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const CarRentingScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const CarRentingScreen()),
               );
             },
             child: const _WideServiceCard(),
@@ -947,8 +1055,10 @@ class _ServiceCard extends StatelessWidget {
               const Spacer(),
               if (showPopular)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primary,
                     borderRadius: BorderRadius.circular(999),
@@ -1165,11 +1275,7 @@ class _VerticalDividerSoft extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      width: 1,
-      color: AppColors.secondary,
-    );
+    return Container(height: 52, width: 1, color: AppColors.secondary);
   }
 }
 
@@ -1181,7 +1287,7 @@ class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.icon,
     required this.label,
-    this.active = false,
+    required this.active,
   });
 
   @override
@@ -1207,30 +1313,7 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
 
-  const _CircleIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.card(context),
-      shape: const CircleBorder(),
-      elevation: 0,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          height: 44,
-          width: 44,
-          child: Icon(icon, color: AppColors.text1(context)),
-        ),
-      ),
-    );
-  }
-}
 
 class _MapPinBubble extends StatelessWidget {
   final Color color;
@@ -1275,4 +1358,6 @@ class _MapPinBubble extends StatelessWidget {
       ],
     );
   }
+  
 }
+

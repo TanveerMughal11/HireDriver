@@ -29,6 +29,13 @@ class AwaitingDriverProvider extends ChangeNotifier {
     _countdownTimer?.cancel();
   }
 
+  void syncRemainingSeconds(int seconds) {
+    final normalized = seconds < 0 ? 0 : seconds;
+    remainingSeconds = normalized;
+    isTimeFinished = normalized == 0;
+    notifyListeners();
+  }
+
   String formatTimer() {
     final minutes = (remainingSeconds ~/ 60).toString().padLeft(2, '0');
     final secs = (remainingSeconds % 60).toString().padLeft(2, '0');

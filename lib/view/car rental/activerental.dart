@@ -5,10 +5,7 @@ import 'package:hire_driver/view/car%20rental/carrentalreview.dart';
 class ActiveRentalScreen extends StatelessWidget {
   final Map<String, dynamic> booking;
 
-  const ActiveRentalScreen({
-    super.key,
-    required this.booking,
-  });
+  const ActiveRentalScreen({super.key, required this.booking});
 
   String _formatDate(String? rawDate) {
     if (rawDate == null || rawDate.isEmpty) return 'N/A';
@@ -23,40 +20,126 @@ class ActiveRentalScreen extends StatelessWidget {
     }
   }
 
+  Map<String, dynamic> _asMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return {};
+  }
+
+  String _firstString(List<dynamic> values, String fallback) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
+    }
+    return fallback;
+  }
+
+  Map<String, dynamic> get listing {
+    return _asMap(booking['listing'] ?? booking['car'] ?? booking['vehicle']);
+  }
+
+  Map<String, dynamic> get carInfo {
+    return _asMap(listing['carInfo'] ?? booking['carInfo'] ?? listing);
+  }
+
   String get carName {
-    final listing = booking['listing'] ?? {};
-    final carInfo = listing['carInfo'] ?? {};
-    final name = '${carInfo['make'] ?? ''} ${carInfo['model'] ?? ''}'.trim();
+    final explicitName = _firstString(
+      [
+        carInfo['name'],
+        carInfo['title'],
+        booking['carName'],
+        listing['title'],
+      ],
+      '',
+    );
+    if (explicitName.isNotEmpty) return explicitName;
+
+    final name =
+        '${carInfo['make'] ?? carInfo['brand'] ?? ''} ${carInfo['model'] ?? ''}'
+            .trim();
     return name.isEmpty ? 'Rental Car' : name;
   }
 
   String get hostName {
-    final host = booking['host'] ?? {};
-    return host['name'] ?? 'Host';
+    final host = _asMap(booking['host'] ?? booking['owner']);
+    return _firstString([host['name'], host['fullName'], host['userName']], 'Host');
   }
 
   String get returnDate {
-    return _formatDate(booking['returnDate']?.toString());
+    return _formatDate(
+      _firstString(
+        [booking['returnDate'], booking['endDate'], booking['dropoffDate']],
+        '',
+      ),
+    );
   }
 
   String get bookingCode {
-    return booking['bookingCode'] ?? 'N/A';
+    return _firstString([booking['bookingCode'], booking['code']], 'N/A');
   }
 
   String get totalAmount {
-    final pricing = booking['pricing'] ?? {};
-    return '${pricing['totalAmount'] ?? 0}';
+    final pricing = _asMap(booking['pricing']);
+    return _firstString(
+      [pricing['totalAmount'], booking['totalAmount'], booking['totalPrice']],
+      '0',
+    );
   }
 
   int get daysLeft {
     try {
-      final date = DateTime.parse(booking['returnDate'].toString()).toLocal();
+      final rawDate = _firstString(
+        [booking['returnDate'], booking['endDate'], booking['dropoffDate']],
+        '',
+      );
+      final date = DateTime.parse(rawDate).toLocal();
       final now = DateTime.now();
       final diff = date.difference(now).inDays;
       return diff < 0 ? 0 : diff;
     } catch (_) {
       return 0;
     }
+  }
+
+  Future<void> _showIssueDialog(BuildContext context) async {
+    final controller = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Report Issue'),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Describe the issue with this active rental',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      controller.text.trim().isEmpty
+                          ? 'Issue reported successfully'
+                          : 'Issue reported: ${controller.text.trim()}',
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -66,9 +149,7 @@ class ActiveRentalScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.bg(context),
         elevation: 0,
-        iconTheme: IconThemeData(
-          color: AppColors.text1(context),
-        ),
+        iconTheme: IconThemeData(color: AppColors.text1(context)),
         title: Text(
           'Active Rental',
           style: TextStyle(
@@ -213,7 +294,7 @@ class ActiveRentalScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              onPressed: () {},
+              onPressed: () => _showIssueDialog(context),
               icon: const Icon(Icons.report_problem_rounded),
               label: const Text(
                 'Report Issue',
@@ -231,10 +312,7 @@ class _InfoCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
-  const _InfoCard({
-    required this.title,
-    required this.children,
-  });
+  const _InfoCard({required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {

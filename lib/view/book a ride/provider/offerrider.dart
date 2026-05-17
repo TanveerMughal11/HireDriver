@@ -5,12 +5,17 @@ import 'package:hire_driver/view/book%20a%20ride/services/bookaride.dart';
 class DriverOffersProvider extends ChangeNotifier {
   int secondsLeft = 24;
   Timer? timer;
+  Timer? _rideStatusPollTimer;
 
   bool isLoading = true;
   bool isActionLoading = false;
   bool live = false;
   int respondedDrivers = 0;
   String errorMessage = '';
+  bool riderAccepted = false;
+  String riderAcceptedMessage = '';
+  String passengerDecisionType = '';
+  String passengerDecisionMessage = '';
 
   String pickupAddress = 'Current Location';
   double? pickupLat;
@@ -38,9 +43,7 @@ class DriverOffersProvider extends ChangeNotifier {
     });
   }
 
-  Future<Map<String, dynamic>> broadcastRide({
-    required String rideId,
-  }) async {
+  Future<Map<String, dynamic>> broadcastRide({required String rideId}) async {
     isLoading = true;
     errorMessage = '';
     notifyListeners();
@@ -56,6 +59,64 @@ class DriverOffersProvider extends ChangeNotifier {
     }
 
     return result;
+  }
+
+  Future<void> refreshRideStatus({required String rideId}) async {
+    final result = await RideApiService.getRideRequest(rideId: rideId);
+
+    if (result['success'] != true) {
+      return;
+    }
+
+    final data = result['data'];
+    if (data is! Map<String, dynamic>) {
+      return;
+    }
+
+    final ride = data['ride'];
+    if (ride is! Map<String, dynamic>) {
+      return;
+    }
+
+    setRideData({
+      'ride': ride,
+      'live': true,
+      'respondedDrivers': (ride['driverOffers'] as List?)?.length ?? 0,
+    });
+
+    final passengerUpdate = ride['passengerUpdate'];
+    if (passengerUpdate is Map<String, dynamic> &&
+        passengerUpdate['accepted'] == true) {
+      passengerDecisionType = 'accepted';
+      riderAccepted = true;
+      riderAcceptedMessage =
+          passengerUpdate['message']?.toString() ??
+          'Rider accepted your ride and is coming.';
+      notifyListeners();
+      stopRideStatusPolling();
+      return;
+    }
+
+    if (passengerUpdate is Map<String, dynamic> &&
+        passengerUpdate['decision']?.toString() == 'declined') {
+      passengerDecisionType = 'declined';
+      passengerDecisionMessage =
+          passengerUpdate['message']?.toString() ??
+          'A rider declined your request. Looking for another rider...';
+      notifyListeners();
+    }
+  }
+
+  void startRideStatusPolling({required String rideId}) {
+    _rideStatusPollTimer?.cancel();
+    _rideStatusPollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      refreshRideStatus(rideId: rideId);
+    });
+  }
+
+  void stopRideStatusPolling() {
+    _rideStatusPollTimer?.cancel();
+    _rideStatusPollTimer = null;
   }
 
   void setRideData(Map<String, dynamic> data) {
@@ -165,12 +226,17 @@ class DriverOffersProvider extends ChangeNotifier {
 
   void clear() {
     timer?.cancel();
+    stopRideStatusPolling();
     secondsLeft = 24;
     isLoading = true;
     isActionLoading = false;
     live = false;
     respondedDrivers = 0;
     errorMessage = '';
+    riderAccepted = false;
+    riderAcceptedMessage = '';
+    passengerDecisionType = '';
+    passengerDecisionMessage = '';
     pickupAddress = 'Current Location';
     pickupLat = null;
     pickupLng = null;
@@ -180,6 +246,7 @@ class DriverOffersProvider extends ChangeNotifier {
   @override
   void dispose() {
     timer?.cancel();
+    stopRideStatusPolling();
     super.dispose();
   }
 }

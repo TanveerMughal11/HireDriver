@@ -9,6 +9,7 @@ import 'package:hire_driver/view/driver/bottombar.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+
 class DriverHomeScreen1 extends StatefulWidget {
   const DriverHomeScreen1({super.key});
 
@@ -19,84 +20,85 @@ class DriverHomeScreen1 extends StatefulWidget {
 class _DriverHomeScreen1State extends State<DriverHomeScreen1> {
   String userName = "Driver";
   bool isOnline = false;
-bool isDashboardLoading = true;
-String dashboardError = '';
+  bool isDashboardLoading = true;
+  String dashboardError = '';
 
-String bannerText = '0 new hire driver requests waiting for response';
-String todayAmount = 'PKR 0';
-String completedTripsToday = '0 completed trips today';
+  String bannerText = '0 new hire driver requests waiting for response';
+  String todayAmount = 'PKR 0';
+  String completedTripsToday = '0 completed trips today';
 
-String rating = '0.0';
-String trips = '0';
-String onlineHours = '0h';
+  String rating = '0.0';
+  String trips = '0';
+  String onlineHours = '0h';
 
-List<Map<String, dynamic>> incomingRequests = [];
+  List<Map<String, dynamic>> incomingRequests = [];
   @override
   void initState() {
     super.initState();
-_loadUser();
-_fetchDriverDashboard();
-_fetchIncomingRequests();
+    _loadUser();
+    _fetchDriverDashboard();
+    _fetchIncomingRequests();
   }
-Future<void> _fetchIncomingRequests() async {
-  try {
-    final data = await DriverRequestsApi.getIncomingRequests();
 
-    if (data['success'] == true) {
-      setState(() {
-        bannerText =
-            data['bannerText'] ??
-            '0 new hire driver requests waiting for response';
+  Future<void> _fetchIncomingRequests() async {
+    try {
+      final data = await DriverRequestsApi.getIncomingRequests();
 
-        incomingRequests = List<Map<String, dynamic>>.from(
-          data['incomingRequests'] ?? [],
-        );
-      });
-    } else {
-      throw Exception(
-        data['message'] ?? 'Failed to load incoming requests',
-      );
+      if (data['success'] == true) {
+        setState(() {
+          bannerText =
+              data['bannerText'] ??
+              '0 new hire driver requests waiting for response';
+
+          incomingRequests = List<Map<String, dynamic>>.from(
+            data['incomingRequests'] ?? [],
+          );
+        });
+      } else {
+        throw Exception(data['message'] ?? 'Failed to load incoming requests');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.toString())),
-    );
   }
-}
-Future<void> _updateDriverAvailability(bool value) async {
-  final oldValue = isOnline;
 
-  setState(() {
-    isOnline = value;
-  });
+  Future<void> _updateDriverAvailability(bool value) async {
+    final oldValue = isOnline;
 
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null || token.isEmpty) {
-      throw Exception('Token not found. Please login again.');
-    }
-
-final data = await DriverRequestsApi.updateAvailability(value);
-
-  if (data['success'] == true) {
-      setState(() {
-        isOnline = data['availability']['isOnline'] ?? value;
-      });
-    } else {
-      throw Exception(data['message'] ?? 'Failed to update availability');
-    }
-  } catch (e) {
     setState(() {
-      isOnline = oldValue;
+      isOnline = value;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.toString())),
-    );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Token not found. Please login again.');
+      }
+
+      final data = await DriverRequestsApi.updateAvailability(value);
+
+      if (data['success'] == true) {
+        setState(() {
+          isOnline = data['availability']['isOnline'] ?? value;
+        });
+      } else {
+        throw Exception(data['message'] ?? 'Failed to update availability');
+      }
+    } catch (e) {
+      setState(() {
+        isOnline = oldValue;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
   }
-}
+
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userString = prefs.getString('userData');
@@ -108,117 +110,110 @@ final data = await DriverRequestsApi.updateAvailability(value);
       });
     }
   }
-Future<void> _fetchDriverDashboard() async {
 
-  setState(() {
-    isDashboardLoading = true;
-    dashboardError = '';
-  });
-
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    if (token == null || token.isEmpty) {
-      throw Exception('Token not found. Please login again.');
-    }
-
-    final response = await http.get(
-      Uri.parse('https://hiredrive-fal0.onrender.com/api/driver-requests/dashboard'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 200 && data['success'] == true) {
-      final dashboard = data['dashboard'];
-
-      setState(() {
-        userName = dashboard['driver']?['name'] ?? userName;
-        isOnline = dashboard['driver']?['availability']?['isOnline'] ?? false;
-
-        final earnings = dashboard['todayEarnings'];
-        todayAmount =
-            '${earnings?['currency'] ?? 'PKR'} ${earnings?['amount'] ?? 0}';
-        completedTripsToday =
-            '${earnings?['completedTripsToday'] ?? 0} completed trips today';
-
-        final statsData = dashboard['stats'];
-        rating = '${statsData?['rating'] ?? 0.0}';
-        trips = '${statsData?['trips'] ?? 0}';
-        onlineHours = '${statsData?['onlineHours'] ?? 0}h';
-
-        bannerText =
-            dashboard['pendingSummary']?['bannerText'] ??
-                '0 new hire driver requests waiting for response';
-
-        incomingRequests =
-            List<Map<String, dynamic>>.from(dashboard['incomingRequests'] ?? []);
-
-        isDashboardLoading = false;
-      });
-    } else {
-      throw Exception(data['message'] ?? 'Failed to load dashboard');
-    }
-  } catch (e) {
+  Future<void> _fetchDriverDashboard() async {
     setState(() {
-      isDashboardLoading = false;
-      dashboardError = e.toString();
+      isDashboardLoading = true;
+      dashboardError = '';
     });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null || token.isEmpty) {
+        throw Exception('Token not found. Please login again.');
+      }
+
+      final response = await http.get(
+        Uri.parse('https://hiredrive-fal0.onrender.com/api/driver-requests/dashboard'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        final dashboard = data['dashboard'];
+
+        setState(() {
+          userName = dashboard['driver']?['name'] ?? userName;
+          isOnline = dashboard['driver']?['availability']?['isOnline'] ?? false;
+
+          final earnings = dashboard['todayEarnings'];
+          todayAmount =
+              '${earnings?['currency'] ?? 'PKR'} ${earnings?['amount'] ?? 0}';
+          completedTripsToday =
+              '${earnings?['completedTripsToday'] ?? 0} completed trips today';
+
+          final statsData = dashboard['stats'];
+          rating = '${statsData?['rating'] ?? 0.0}';
+          trips = '${statsData?['trips'] ?? 0}';
+          onlineHours = '${statsData?['onlineHours'] ?? 0}h';
+
+          bannerText =
+              dashboard['pendingSummary']?['bannerText'] ??
+              '0 new hire driver requests waiting for response';
+
+          incomingRequests = List<Map<String, dynamic>>.from(
+            dashboard['incomingRequests'] ?? [],
+          );
+
+          isDashboardLoading = false;
+        });
+      } else {
+        throw Exception(data['message'] ?? 'Failed to load dashboard');
+      }
+    } catch (e) {
+      setState(() {
+        isDashboardLoading = false;
+        dashboardError = e.toString();
+      });
+    }
   }
-}
-void _openRequestDetail(String requestId) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => DriverRequestDetailScreen(
-        hireRequestId: requestId,
-      ),
-    ),
-  );
-}
 
-void _openNavigation() {
-  if (incomingRequests.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('No active navigation request found'),
-      ),
-    );
-    return;
-  }
-
-  final requestId = incomingRequests.first['requestId'] ?? '';
-
-  if (requestId.isEmpty) return;
-
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => DriverNavigationScreen(
-        hireRequestId: requestId,
-      ),
-    ),
-  );
-}
-  void _openEarnings() {
+  void _openRequestDetail(String requestId) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const DriverEarningsScreen(),
+        builder: (_) => DriverRequestDetailScreen(hireRequestId: requestId),
       ),
+    );
+  }
+
+  void _openNavigation() {
+    if (incomingRequests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active navigation request found')),
+      );
+      return;
+    }
+
+    final requestId = incomingRequests.first['requestId'] ?? '';
+
+    if (requestId.isEmpty) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DriverNavigationScreen(hireRequestId: requestId),
+      ),
+    );
+  }
+
+  void _openEarnings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DriverEarningsScreen()),
     );
   }
 
   void _openReviews() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const DriverReviewsScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const DriverReviewsScreen()),
     );
   }
 
@@ -226,9 +221,7 @@ void _openNavigation() {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      bottomNavigationBar: const DriverBottomNavBar(
-        currentIndex: 0,
-      ),
+      bottomNavigationBar: const DriverBottomNavBar(currentIndex: 0),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -239,26 +232,28 @@ void _openNavigation() {
               _DriverTopHeader(
                 userName: userName,
                 isOnline: isOnline,
-           onToggle: _updateDriverAvailability,
+                onToggle: _updateDriverAvailability,
               ),
               const SizedBox(height: 18),
               const _DriverMapCard(),
               const SizedBox(height: 16),
-     _TodayEarningsCard(
-  amount: todayAmount,
-  completedTrips: completedTripsToday,
-),
+              _TodayEarningsCard(
+                amount: todayAmount,
+                completedTrips: completedTripsToday,
+              ),
               const SizedBox(height: 16),
-        _DriverStatsRow(
-  rating: rating,
-  trips: trips,
-  onlineHours: onlineHours,
-),
+              _DriverStatsRow(
+                rating: rating,
+                trips: trips,
+                onlineHours: onlineHours,
+              ),
               const SizedBox(height: 22),
               Container(
                 width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.orange.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(16),
@@ -291,30 +286,32 @@ void _openNavigation() {
                 subtitle: 'Accept or review hire driver requests',
               ),
               const SizedBox(height: 12),
-if (incomingRequests.isEmpty)
-  Text(
-    'No incoming requests available',
-    style: TextStyle(
-      color: AppColors.text2(context),
-      fontWeight: FontWeight.w600,
-    ),
-  )
-else
-  ...incomingRequests.map((req) {
-    final fare = req['fare'];
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: _IncomingRequestCard(
-        passengerName: req['title'] ?? req['rider']?['name'] ?? 'Passenger',
-        tripType: req['subtitle'] ?? 'Hire Driver',
-        pickup: req['pickup']?['address'] ?? '',
-        dropoff: req['dropoff']?['address'] ?? '',
-        fare: '${fare?['currency'] ?? 'PKR'} ${fare?['amount'] ?? 0}',
-        distance: req['tripMeta'] ?? '',
-    onTap: () => _openRequestDetail(req['requestId'] ?? ''),
-      ),
-    );
-  }),
+              if (incomingRequests.isEmpty)
+                Text(
+                  'No incoming requests available',
+                  style: TextStyle(
+                    color: AppColors.text2(context),
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              else
+                ...incomingRequests.map((req) {
+                  final fare = req['fare'];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _IncomingRequestCard(
+                      passengerName:
+                          req['title'] ?? req['rider']?['name'] ?? 'Passenger',
+                      tripType: req['subtitle'] ?? 'Hire Driver',
+                      pickup: req['pickup']?['address'] ?? '',
+                      dropoff: req['dropoff']?['address'] ?? '',
+                      fare:
+                          '${fare?['currency'] ?? 'PKR'} ${fare?['amount'] ?? 0}',
+                      distance: req['tripMeta'] ?? '',
+                      onTap: () => _openRequestDetail(req['requestId'] ?? ''),
+                    ),
+                  );
+                }),
               const SizedBox(height: 22),
               const _SectionTitle(
                 title: 'Quick Actions',
@@ -402,7 +399,7 @@ class _DriverTopHeader extends StatelessWidget {
               Switch(
                 value: isOnline,
                 onChanged: onToggle,
-                activeColor: Colors.green,
+                activeThumbColor: Colors.green,
               ),
             ],
           ),
@@ -422,9 +419,7 @@ class _DriverMapCard extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: AppColors.secondary.withOpacity(0.45),
-        ),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
@@ -440,8 +435,7 @@ class _DriverMapCard extends StatelessWidget {
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.hiredrive',
                 ),
 
@@ -485,6 +479,7 @@ class _DriverMapCard extends StatelessWidget {
     );
   }
 }
+
 class _DriverMapPainter extends CustomPainter {
   final Color backgroundColor;
   final Color roadColor;
@@ -552,10 +547,7 @@ class _MapInfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _MapInfoChip({
-    required this.icon,
-    required this.text,
-  });
+  const _MapInfoChip({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -625,7 +617,7 @@ class _TodayEarningsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-           Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -638,9 +630,9 @@ class _TodayEarningsCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 4),
-        Text(
-  amount,
-  style: TextStyle(
+                Text(
+                  amount,
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
@@ -648,11 +640,8 @@ class _TodayEarningsCard extends StatelessWidget {
                 ),
                 SizedBox(height: 3),
                 Text(
-                completedTrips,
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
+                  completedTrips,
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
             ),
@@ -705,6 +694,7 @@ class _DriverStatsRow extends StatelessWidget {
     );
   }
 }
+
 class _MiniStatCard extends StatelessWidget {
   final IconData icon;
   final String value;
@@ -837,8 +827,10 @@ class _IncomingRequestCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.softBg(context),
                     borderRadius: BorderRadius.circular(50),
@@ -855,20 +847,11 @@ class _IncomingRequestCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            _TripRow(
-              icon: Icons.my_location_rounded,
-              text: pickup,
-            ),
+            _TripRow(icon: Icons.my_location_rounded, text: pickup),
             const SizedBox(height: 8),
-            _TripRow(
-              icon: Icons.location_on_rounded,
-              text: dropoff,
-            ),
+            _TripRow(icon: Icons.location_on_rounded, text: dropoff),
             const SizedBox(height: 8),
-            _TripRow(
-              icon: Icons.route_rounded,
-              text: distance,
-            ),
+            _TripRow(icon: Icons.route_rounded, text: distance),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -923,10 +906,7 @@ class _TripRow extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  const _TripRow({
-    required this.icon,
-    required this.text,
-  });
+  const _TripRow({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -1039,10 +1019,7 @@ class _SectionTitle extends StatelessWidget {
   final String title;
   final String subtitle;
 
-  const _SectionTitle({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionTitle({required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
@@ -1075,10 +1052,7 @@ class _MapPinBubble extends StatelessWidget {
   final Color color;
   final IconData icon;
 
-  const _MapPinBubble({
-    required this.color,
-    required this.icon,
-  });
+  const _MapPinBubble({required this.color, required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -1122,10 +1096,7 @@ class _MapPinBubble extends StatelessWidget {
 class DriverRequestDetailScreen extends StatefulWidget {
   final String hireRequestId;
 
-  const DriverRequestDetailScreen({
-    super.key,
-    required this.hireRequestId,
-  });
+  const DriverRequestDetailScreen({super.key, required this.hireRequestId});
 
   @override
   State<DriverRequestDetailScreen> createState() =>
@@ -1141,44 +1112,46 @@ class _DriverRequestDetailScreenState extends State<DriverRequestDetailScreen> {
     super.initState();
     _fetchReview();
   }
-Future<void> _declineHireRequest() async {
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
 
-    if (token == null || token.isEmpty) {
-      throw Exception('Token not found. Please login again.');
-    }
+  Future<void> _declineHireRequest() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
-    final response = await http.post(
-      Uri.parse(
-        'https://hiredrive-fal0.onrender.com/api/driver-requests/${widget.hireRequestId}/decline',
-      ),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+      if (token == null || token.isEmpty) {
+        throw Exception('Token not found. Please login again.');
+      }
 
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode == 200 && data['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(data['message'] ?? 'Request declined successfully'),
+      final response = await http.post(
+        Uri.parse(
+          'https://hiredrive-fal0.onrender.com/api/driver-requests/${widget.hireRequestId}/decline',
         ),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
-      Navigator.pop(context);
-    } else {
-      throw Exception(data['message'] ?? 'Failed to decline request');
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message'] ?? 'Request declined successfully'),
+          ),
+        );
+
+        Navigator.pop(context);
+      } else {
+        throw Exception(data['message'] ?? 'Failed to decline request');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.toString())),
-    );
   }
-}
+
 Future<void> _acceptHireRequest() async {
   try {
     final prefs = await SharedPreferences.getInstance();
@@ -1198,32 +1171,40 @@ Future<void> _acceptHireRequest() async {
       },
     );
 
-    final data = jsonDecode(response.body);
+    print('Response code: ${response.statusCode}');
+    print('Response body: ${response.body}');
 
-    if (response.statusCode == 200 && data['success'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(data['message'] ?? 'Request accepted successfully'),
-        ),
-      );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['message'] ?? 'Request accepted successfully'),
+          ),
+        );
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => DriverNavigationScreen(
-  hireRequestId: widget.hireRequestId,
-),
-        ),
-      );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                DriverNavigationScreen(hireRequestId: widget.hireRequestId),
+          ),
+        );
+      } else {
+        throw Exception(data['message'] ?? 'Failed to accept request');
+      }
     } else {
-      throw Exception(data['message'] ?? 'Failed to accept request');
+      // Handle HTML or other error pages
+      throw Exception(
+          'Failed to accept request: ${response.statusCode} ${response.reasonPhrase}');
     }
   } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(e.toString())),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(e.toString())));
   }
 }
+
   Future<void> _fetchReview() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1258,12 +1239,12 @@ Future<void> _acceptHireRequest() async {
         isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
-    
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1377,7 +1358,7 @@ Future<void> _acceptHireRequest() async {
                 style: TextStyle(color: AppColors.text1(context)),
               ),
             ],
-          )
+          ),
         ],
       ),
     );
@@ -1396,11 +1377,19 @@ Future<void> _acceptHireRequest() async {
       ),
       child: Column(
         children: [
-          _row(context, Icons.location_on, "Pickup",
-              trip?['pickup']?['address'] ?? ''),
+          _row(
+            context,
+            Icons.location_on,
+            "Pickup",
+            trip?['pickup']?['address'] ?? '',
+          ),
           const SizedBox(height: 10),
-          _row(context, Icons.flag, "Dropoff",
-              trip?['dropoff']?['address'] ?? ''),
+          _row(
+            context,
+            Icons.flag,
+            "Dropoff",
+            trip?['dropoff']?['address'] ?? '',
+          ),
           Divider(height: 20, color: AppColors.secondary.withOpacity(0.45)),
           _row(context, Icons.calendar_today, "Date", trip?['date'] ?? ''),
           const SizedBox(height: 10),
@@ -1437,10 +1426,7 @@ Future<void> _acceptHireRequest() async {
       ),
       child: Column(
         children: [
-          const Text(
-            "Fare Offered",
-            style: TextStyle(color: Colors.white70),
-          ),
+          const Text("Fare Offered", style: TextStyle(color: Colors.white70)),
           const SizedBox(height: 6),
           Text(
             "${fare?['currency'] ?? 'PKR'} ${fare?['amount'] ?? 0}",
@@ -1463,13 +1449,11 @@ Future<void> _acceptHireRequest() async {
         children: [
           Expanded(
             child: OutlinedButton(
-             onPressed: _declineHireRequest,
+              onPressed: _declineHireRequest,
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(54),
                 foregroundColor: Colors.red,
-                side: BorderSide(
-                  color: AppColors.secondary.withOpacity(0.55),
-                ),
+                side: BorderSide(color: AppColors.secondary.withOpacity(0.55)),
               ),
               child: const Text("Decline"),
             ),
@@ -1477,7 +1461,7 @@ Future<void> _acceptHireRequest() async {
           const SizedBox(width: 12),
           Expanded(
             child: ElevatedButton(
-           onPressed: _acceptHireRequest,
+              onPressed: _acceptHireRequest,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 minimumSize: const Size.fromHeight(54),
@@ -1496,12 +1480,7 @@ Future<void> _acceptHireRequest() async {
     );
   }
 
-  Widget _row(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String value,
-  ) {
+  Widget _row(BuildContext context, IconData icon, String title, String value) {
     return Row(
       children: [
         Icon(icon, size: 18, color: AppColors.primary),
@@ -1519,17 +1498,14 @@ Future<void> _acceptHireRequest() async {
     );
   }
 }
+
 class DriverNavigationScreen extends StatefulWidget {
   final String hireRequestId;
 
-  const DriverNavigationScreen({
-    super.key,
-    required this.hireRequestId,
-  });
+  const DriverNavigationScreen({super.key, required this.hireRequestId});
 
   @override
-  State<DriverNavigationScreen> createState() =>
-      _DriverNavigationScreenState();
+  State<DriverNavigationScreen> createState() => _DriverNavigationScreenState();
 }
 
 class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
@@ -1557,12 +1533,14 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
   LatLng _parseLatLng(dynamic location, LatLng fallback) {
     final coordinates = location?['coordinates'];
 
-    final lat = location?['lat'] ??
+    final lat =
+        location?['lat'] ??
         location?['latitude'] ??
         coordinates?['lat'] ??
         coordinates?['latitude'];
 
-    final lng = location?['lng'] ??
+    final lng =
+        location?['lng'] ??
         location?['lon'] ??
         location?['longitude'] ??
         coordinates?['lng'] ??
@@ -1571,10 +1549,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
 
     if (lat == null || lng == null) return fallback;
 
-    return LatLng(
-      (lat as num).toDouble(),
-      (lng as num).toDouble(),
-    );
+    return LatLng((lat as num).toDouble(), (lng as num).toDouble());
   }
 
   Future<List<LatLng>> _loadRoute(LatLng from, LatLng to) async {
@@ -1592,10 +1567,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
     final coordinates = data['routes'][0]['geometry']['coordinates'] as List;
 
     return coordinates.map<LatLng>((coord) {
-      return LatLng(
-        (coord[1] as num).toDouble(),
-        (coord[0] as num).toDouble(),
-      );
+      return LatLng((coord[1] as num).toDouble(), (coord[0] as num).toDouble());
     }).toList();
   }
 
@@ -1641,15 +1613,9 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
         final pickup = trip?['pickup'];
         final dropoff = trip?['dropoff'];
 
-        pickupLatLng = _parseLatLng(
-          pickup,
-          const LatLng(31.5204, 74.3587),
-        );
+        pickupLatLng = _parseLatLng(pickup, const LatLng(31.5204, 74.3587));
 
-        dropoffLatLng = _parseLatLng(
-          dropoff,
-          const LatLng(31.5100, 74.3500),
-        );
+        dropoffLatLng = _parseLatLng(dropoff, const LatLng(31.5100, 74.3500));
 
         dropoffAddress = dropoff?['address'] ?? '';
 
@@ -1667,26 +1633,22 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
 
         setState(() {
           etaMinutes = '${nav['etaMinutes'] ?? 0} mins';
-          locationLabel =
-              pickup?['address'] ?? nav['locationLabel'] ?? '';
+          locationLabel = pickup?['address'] ?? nav['locationLabel'] ?? '';
           tripMeta = nav['tripMeta'] ?? '';
-          actionButton =
-              nav['actionButton'] ?? 'Arrived at Pickup';
+          actionButton = nav['actionButton'] ?? 'Arrived at Pickup';
           isLoading = false;
         });
       } else {
-        throw Exception(
-          data['message'] ?? 'Failed to load navigation',
-        );
+        throw Exception(data['message'] ?? 'Failed to load navigation');
       }
     } catch (e) {
       setState(() {
         isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -1752,8 +1714,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
                                 TileLayer(
                                   urlTemplate:
                                       'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                  userAgentPackageName:
-                                      'com.example.hiredrive',
+                                  userAgentPackageName: 'com.example.hiredrive',
                                 ),
                                 if (pickupRoutePoints.isNotEmpty)
                                   PolylineLayer(
@@ -1785,8 +1746,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
                                         height: 60,
                                         child: const _MapPinBubble(
                                           color: Colors.green,
-                                          icon: Icons
-                                              .person_pin_circle_rounded,
+                                          icon: Icons.person_pin_circle_rounded,
                                         ),
                                       ),
                                   ],
@@ -1843,8 +1803,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
                             elevation: 0,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 15),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
@@ -1852,9 +1811,7 @@ class _DriverNavigationScreenState extends State<DriverNavigationScreen> {
                           onPressed: () => _openActiveRide(context),
                           child: Text(
                             actionButton,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                         ),
                       ),
@@ -1884,9 +1841,7 @@ class DriverRideActiveScreen extends StatelessWidget {
   void _openComplete(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const DriverCompleteScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const DriverCompleteScreen()),
     );
   }
 
@@ -1936,8 +1891,7 @@ class DriverRideActiveScreen extends StatelessWidget {
                           TileLayer(
                             urlTemplate:
                                 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName:
-                                'com.example.hiredrive',
+                            userAgentPackageName: 'com.example.hiredrive',
                           ),
                           if (routePoints.isNotEmpty)
                             PolylineLayer(
@@ -1958,8 +1912,7 @@ class DriverRideActiveScreen extends StatelessWidget {
                                   height: 60,
                                   child: const _MapPinBubble(
                                     color: Colors.green,
-                                    icon:
-                                        Icons.person_pin_circle_rounded,
+                                    icon: Icons.person_pin_circle_rounded,
                                   ),
                                 ),
                               if (dropoffLatLng != null)
@@ -1996,9 +1949,7 @@ class DriverRideActiveScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.card(context),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: AppColors.secondary.withOpacity(0.45),
-              ),
+              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withOpacity(0.05),
@@ -2021,8 +1972,8 @@ class DriverRideActiveScreen extends StatelessWidget {
                   value: dropoffAddress.isNotEmpty
                       ? dropoffAddress
                       : dropoffLatLng == null
-                          ? 'Destination'
-                          : '${dropoffLatLng!.latitude.toStringAsFixed(5)}, ${dropoffLatLng!.longitude.toStringAsFixed(5)}',
+                      ? 'Destination'
+                      : '${dropoffLatLng!.latitude.toStringAsFixed(5)}, ${dropoffLatLng!.longitude.toStringAsFixed(5)}',
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -2070,6 +2021,7 @@ class DriverRideActiveScreen extends StatelessWidget {
     );
   }
 }
+
 class DriverCompleteScreen extends StatelessWidget {
   const DriverCompleteScreen({super.key});
 
@@ -2199,16 +2151,104 @@ class DriverCompleteScreen extends StatelessWidget {
   }
 }
 
-class DriverEarningsScreen extends StatelessWidget {
+class DriverEarningsScreen extends StatefulWidget {
   const DriverEarningsScreen({super.key});
+
+  @override
+  State<DriverEarningsScreen> createState() => _DriverEarningsScreenState();
+}
+class _DriverEarningsScreenState extends State<DriverEarningsScreen> {
+  bool isLoading = true;
+  String errorMessage = '';
+  String todayAmount = 'PKR 0';
+  String completedTripsToday = '0 completed trips today';
+  String weeklyEarnings = 'PKR 0';
+  String monthlyEarnings = 'PKR 0';
+  List<_EarningsBarData> chartData = [];
+  List<_EarningsHistoryEntry> history = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEarnings();
+  }
+
+  Future<void> _loadEarnings() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = '';
+    });
+
+    try {
+      final data = await DriverRequestsApi.getDashboard();
+      if (data['success'] == false) {
+        throw Exception(data['message'] ?? 'Failed to fetch dashboard');
+      }
+
+      final dataMap = _asMap(data['data']);
+      final dashboard = _asMap(
+        data['dashboard'] ?? dataMap['dashboard'] ?? (dataMap.isNotEmpty ? dataMap : data),
+      );
+      final today = _firstMap([
+        dashboard['todayEarnings'],
+        _asMap(dashboard['earnings'])['today'],
+        dashboard['today'],
+      ]);
+      final weekly = _firstMap([
+        dashboard['weeklyEarnings'],
+        _asMap(dashboard['earnings'])['weekly'],
+        dashboard['weekly'],
+      ]);
+      final monthly = _firstMap([
+        dashboard['monthlyEarnings'],
+        _asMap(dashboard['earnings'])['monthly'],
+        dashboard['monthly'],
+      ]);
+      final currency = _text(today['currency'] ?? dashboard['currency']) ?? 'PKR';
+      final chartItems = _firstList([
+        dashboard['earningsOverview'],
+        dashboard['dailyEarnings'],
+        dashboard['weeklyBreakdown'],
+        _asMap(dashboard['earnings'])['breakdown'],
+      ]);
+      final historyItems = _firstList([
+        dashboard['earningsHistory'],
+        dashboard['recentEarnings'],
+        dashboard['completedTrips'],
+        dashboard['recentTrips'],
+        dashboard['rides'],
+        dashboard['requests'],
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        todayAmount = _money(today, fallbackCurrency: currency);
+        completedTripsToday =
+            '${today['completedTripsToday'] ?? today['completedTrips'] ?? dashboard['completedTripsToday'] ?? 0} completed trips today';
+        weeklyEarnings = _money(weekly, fallbackCurrency: currency);
+        monthlyEarnings = _money(monthly, fallbackCurrency: currency);
+        chartData = _parseChartData(chartItems);
+        history = historyItems
+            .map((item) => _EarningsHistoryEntry.fromApi(item, currency))
+            .where((item) => item != null)
+            .cast<_EarningsHistoryEntry>()
+            .toList();
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        isLoading = false;
+        errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      bottomNavigationBar: const DriverBottomNavBar(
-        currentIndex: 1,
-      ),
+      bottomNavigationBar: const DriverBottomNavBar(currentIndex: 1),
       appBar: AppBar(
         backgroundColor: AppColors.bg(context),
         surfaceTintColor: Colors.transparent,
@@ -2221,28 +2261,49 @@ class DriverEarningsScreen extends StatelessWidget {
           ),
         ),
         iconTheme: IconThemeData(color: AppColors.text1(context)),
+        actions: [
+          IconButton(
+            onPressed: _loadEarnings,
+            tooltip: 'Refresh earnings',
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
-body: SafeArea(
-        child: ListView(
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadEarnings,
+          child: ListView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
-            const _TodayEarningsCard(),
+            if (isLoading)
+              const LinearProgressIndicator(minHeight: 2)
+            else if (errorMessage.isNotEmpty)
+              _EarningsErrorCard(
+                message: errorMessage,
+                onRetry: _loadEarnings,
+              ),
+            if (isLoading || errorMessage.isNotEmpty)
+              const SizedBox(height: 16),
+            _TodayEarningsCard(
+              amount: todayAmount,
+              completedTrips: completedTripsToday,
+            ),
             const SizedBox(height: 16),
             Row(
-              children: const [
+              children: [
                 Expanded(
                   child: _MiniStatCard(
                     icon: Icons.calendar_today_rounded,
-                    value: 'Rs. 18k',
+                    value: weeklyEarnings,
                     label: 'Weekly',
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _MiniStatCard(
                     icon: Icons.date_range_rounded,
-                    value: 'Rs. 62k',
+                    value: monthlyEarnings,
                     label: 'Monthly',
                   ),
                 ),
@@ -2268,7 +2329,9 @@ body: SafeArea(
               decoration: BoxDecoration(
                 color: AppColors.card(context),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+                border: Border.all(
+                  color: AppColors.secondary.withOpacity(0.45),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2282,19 +2345,7 @@ body: SafeArea(
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: const [
-                      _BarItem(label: 'Mon', height: 40),
-                      _BarItem(label: 'Tue', height: 65),
-                      _BarItem(label: 'Wed', height: 52),
-                      _BarItem(label: 'Thu', height: 78),
-                      _BarItem(label: 'Fri', height: 58),
-                      _BarItem(label: 'Sat', height: 90),
-                      _BarItem(label: 'Sun', height: 48),
-                    ],
-                  ),
+                  _EarningsChart(data: chartData),
                 ],
               ),
             ),
@@ -2319,38 +2370,269 @@ body: SafeArea(
               ),
             ),
             const SizedBox(height: 16),
-            const _HistoryItem(
-              title: 'Johar Town → Gulberg',
-              subtitle: 'Today • Ride completed',
-              amount: 'Rs. 1,250',
-            ),
-            const SizedBox(height: 10),
-            const _HistoryItem(
-              title: 'DHA Phase 6 → Model Town',
-              subtitle: 'Today • Hire completed',
-              amount: 'Rs. 2,100',
-            ),
-            const SizedBox(height: 10),
-            const _HistoryItem(
-              title: 'Airport → Cantt',
-              subtitle: 'Yesterday • Ride completed',
-              amount: 'Rs. 1,900',
-            ),
+            if (history.isEmpty)
+              const _EmptyEarningsHistory()
+            else
+              ...history.expand(
+                (item) => [
+                  _HistoryItem(
+                    title: item.title,
+                    subtitle: item.subtitle,
+                    amount: item.amount,
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
           ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+class _EarningsBarData {
+  final String label;
+  final double amount;
+
+  const _EarningsBarData({required this.label, required this.amount});
+}
+
+class _EarningsHistoryEntry {
+  final String title;
+  final String subtitle;
+  final String amount;
+
+  const _EarningsHistoryEntry({
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+  });
+
+  static _EarningsHistoryEntry? fromApi(dynamic value, String currency) {
+    final item = _asMap(value);
+    if (item.isEmpty) return null;
+
+    final pickup = _placeName(item['pickup'] ?? item['pickupLocation']);
+    final dropoff = _placeName(
+      item['dropoff'] ?? item['dropoffLocation'] ?? item['destination'],
+    );
+    final title =
+        _text(item['title']) ??
+        (pickup.isNotEmpty && dropoff.isNotEmpty
+            ? '$pickup -> $dropoff'
+            : _text(item['riderName'] ?? item['userName'] ?? item['name']) ??
+                  'Completed ride');
+    final status = _text(item['status'] ?? item['rideStatus']) ?? 'Completed';
+    final date =
+        _shortDate(item['completedAt'] ?? item['updatedAt'] ?? item['createdAt']);
+    final amount = _money(
+      item['earning'] ??
+          item['earnings'] ??
+          item['amount'] ??
+          item['fare'] ??
+          item['finalPrice'] ??
+          item['price'],
+      fallbackCurrency: currency,
+    );
+
+    return _EarningsHistoryEntry(
+      title: title,
+      subtitle: date.isEmpty ? status : '$date • $status',
+      amount: amount,
+    );
+  }
+}
+
+class _EarningsChart extends StatelessWidget {
+  final List<_EarningsBarData> data;
+
+  const _EarningsChart({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return Text(
+        'No earnings chart data available yet.',
+        style: TextStyle(
+          color: AppColors.text2(context),
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+      );
+    }
+
+    final maxAmount = data
+        .map((item) => item.amount)
+        .fold<double>(0, (max, value) => value > max ? value : max);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: data.take(7).map((item) {
+        final height = maxAmount <= 0 ? 12.0 : 20 + (item.amount / maxAmount) * 70;
+        return _BarItem(label: item.label, height: height);
+      }).toList(),
+    );
+  }
+}
+
+class _EarningsErrorCard extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _EarningsErrorCard({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red.withOpacity(0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Colors.red),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: AppColors.text1(context),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyEarningsHistory extends StatelessWidget {
+  const _EmptyEarningsHistory();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+      ),
+      child: Text(
+        'No earning history available yet.',
+        style: TextStyle(
+          color: AppColors.text2(context),
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 }
 
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map) {
+    return Map<String, dynamic>.from(value);
+  }
+  return {};
+}
+
+Map<String, dynamic> _firstMap(List<dynamic> values) {
+  for (final value in values) {
+    final map = _asMap(value);
+    if (map.isNotEmpty) return map;
+  }
+  return {};
+}
+
+List<dynamic> _firstList(List<dynamic> values) {
+  for (final value in values) {
+    if (value is List) return value;
+  }
+  return const [];
+}
+
+String? _text(dynamic value) {
+  final text = value?.toString().trim();
+  return text == null || text.isEmpty ? null : text;
+}
+
+String _money(dynamic value, {required String fallbackCurrency}) {
+  if (value is Map) {
+    final map = _asMap(value);
+    final currency = _text(map['currency']) ?? fallbackCurrency;
+    final amount =
+        map['amount'] ??
+        map['total'] ??
+        map['value'] ??
+        map['earning'] ??
+        map['earnings'] ??
+        0;
+    return '$currency ${_formatAmount(amount)}';
+  }
+  return '$fallbackCurrency ${_formatAmount(value ?? 0)}';
+}
+
+String _formatAmount(dynamic value) {
+  final amount = value is num
+      ? value
+      : num.tryParse(value?.toString() ?? '') ?? 0;
+  if (amount % 1 == 0) return amount.toInt().toString();
+  return amount.toStringAsFixed(2);
+}
+
+String _placeName(dynamic value) {
+  final map = _asMap(value);
+  return _text(
+        map['address'] ??
+            map['name'] ??
+            map['label'] ??
+            map['formattedAddress'] ??
+            value,
+      ) ??
+      '';
+}
+
+String _shortDate(dynamic value) {
+  final text = _text(value);
+  if (text == null) return '';
+  final date = DateTime.tryParse(text);
+  if (date == null) return text;
+  return '${date.day}/${date.month}/${date.year}';
+}
+
+List<_EarningsBarData> _parseChartData(List<dynamic> items) {
+  return items.map((value) {
+    final item = _asMap(value);
+    final label =
+        _text(item['label'] ?? item['day'] ?? item['date'] ?? item['period']) ??
+        '';
+    final amount =
+        item['amount'] ??
+        item['total'] ??
+        item['earnings'] ??
+        item['earning'] ??
+        item['value'] ??
+        0;
+    final parsedAmount = amount is num
+        ? amount.toDouble()
+        : double.tryParse(amount.toString()) ?? 0;
+    return _EarningsBarData(
+      label: label.length > 3 ? label.substring(0, 3) : label,
+      amount: parsedAmount,
+    );
+  }).where((item) => item.label.isNotEmpty).toList();
+}
+
 class _BarItem extends StatelessWidget {
   final String label;
   final double height;
 
-  const _BarItem({
-    required this.label,
-    required this.height,
-  });
+  const _BarItem({required this.label, required this.height});
 
   @override
   Widget build(BuildContext context) {
@@ -2382,10 +2664,7 @@ class _PeriodChip extends StatelessWidget {
   final String label;
   final bool selected;
 
-  const _PeriodChip({
-    required this.label,
-    required this.selected,
-  });
+  const _PeriodChip({required this.label, required this.selected});
 
   @override
   Widget build(BuildContext context) {
@@ -2415,9 +2694,7 @@ class DriverReviewsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg(context),
-      bottomNavigationBar: const DriverBottomNavBar(
-        currentIndex: 2,
-      ),
+      bottomNavigationBar: const DriverBottomNavBar(currentIndex: 2),
       appBar: AppBar(
         backgroundColor: AppColors.bg(context),
         surfaceTintColor: Colors.transparent,
@@ -2460,7 +2737,9 @@ class DriverReviewsScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.softBg(context),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+                border: Border.all(
+                  color: AppColors.secondary.withOpacity(0.45),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2512,10 +2791,7 @@ class _ReviewFilterChip extends StatelessWidget {
   final String label;
   final bool selected;
 
-  const _ReviewFilterChip({
-    required this.label,
-    required this.selected,
-  });
+  const _ReviewFilterChip({required this.label, required this.selected});
 
   @override
   Widget build(BuildContext context) {
@@ -2542,10 +2818,7 @@ class _DetailCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
-  const _DetailCard({
-    required this.title,
-    required this.children,
-  });
+  const _DetailCard({required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {
@@ -2627,10 +2900,7 @@ class _ActionMiniButton extends StatelessWidget {
   final IconData icon;
   final String title;
 
-  const _ActionMiniButton({
-    required this.icon,
-    required this.title,
-  });
+  const _ActionMiniButton({required this.icon, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -2688,10 +2958,7 @@ class _HistoryItem extends StatelessWidget {
               color: AppColors.softBg(context),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.payments_rounded,
-              color: AppColors.primary,
-            ),
+            child: const Icon(Icons.payments_rounded, color: AppColors.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2736,10 +3003,7 @@ class _ReviewCard extends StatelessWidget {
   final String name;
   final String review;
 
-  const _ReviewCard({
-    required this.name,
-    required this.review,
-  });
+  const _ReviewCard({required this.name, required this.review});
 
   @override
   Widget build(BuildContext context) {

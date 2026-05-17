@@ -20,6 +20,7 @@ class OtpScreen extends StatefulWidget {
 class _OtpScreenState extends State<OtpScreen> {
   final TextEditingController controller = TextEditingController();
   bool isLoading = false;
+  bool isResending = false;
 
   @override
   void dispose() {
@@ -31,11 +32,9 @@ class _OtpScreenState extends State<OtpScreen> {
     final otp = controller.text.trim();
 
     if (otp.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please enter OTP"),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Please enter OTP")));
       return;
     }
 
@@ -43,10 +42,7 @@ class _OtpScreenState extends State<OtpScreen> {
       isLoading = true;
     });
 
-    final result = await OtpApiService.verifyOtp(
-      email: widget.email,
-      otp: otp,
-    );
+    final result = await OtpApiService.verifyOtp(email: widget.email, otp: otp);
 
     if (!mounted) return;
 
@@ -54,36 +50,61 @@ class _OtpScreenState extends State<OtpScreen> {
       isLoading = false;
     });
 
-if (result['success'] == true) {
-  final data = result['data'];
-  final token = data['token'];
-  final user = data['user'];
+    if (result['success'] == true) {
+      final data = result['data'];
+      final token = data['token'];
+      final user = data['user'];
 
-  if (token == null || token.toString().isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Token not found")),
-    );
-    return;
+      if (token == null || token.toString().isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Token not found")));
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('token', token);
+      await prefs.setString('userData', jsonEncode(user));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(data['message'] ?? 'OTP verified')),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
+        (route) => false,
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'OTP verification failed')),
+      );
+    }
   }
 
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString('token', token);
-  await prefs.setString('userData', jsonEncode(user));
+  Future<void> resendOtpCode() async {
+    setState(() {
+      isResending = true;
+    });
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(data['message'] ?? 'OTP verified'),
-    ),
-  );
+    final result = await OtpApiService.resendOtp(email: widget.email);
 
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const RoleSelectionScreen(),
-    ),
-    (route) => false,
-  );
-}
+    if (!mounted) return;
+
+    setState(() {
+      isResending = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['message'] ??
+              (result['success'] == true
+                  ? 'OTP resent successfully'
+                  : 'Failed to resend OTP'),
+        ),
+      ),
+    );
   }
 
   @override
@@ -137,9 +158,7 @@ if (result['success'] == true) {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                        ),
+                        child: CircularProgressIndicator(color: Colors.white),
                       ),
                     )
                   : PrimaryButton(
@@ -150,33 +169,25 @@ if (result['success'] == true) {
                     ),
               const SizedBox(height: 20),
               SizedBox(
-  width: double.infinity,
-  child: OutlinedButton(
-    style: OutlinedButton.styleFrom(
-      side: const BorderSide(
-        color: AppColors.primary,
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-    ),
-    onPressed: () {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('OTP resent successfully'),
-        ),
-      );
-    },
-    child: const Text(
-      "Resend OTP",
-      style: TextStyle(
-        color: AppColors.primary,
-        fontWeight: FontWeight.w700,
-      ),
-    ),
-  ),
-),
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.primary),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: isResending ? null : resendOtpCode,
+                  child: const Text(
+                    "Resend OTP",
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

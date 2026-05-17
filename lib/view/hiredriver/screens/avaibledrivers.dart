@@ -404,7 +404,7 @@ class _AvailableDriversBodyState extends State<_AvailableDriversBody> {
                                         20,
                                       ),
                                       itemCount: driverList.length,
-                                      separatorBuilder: (_, __) =>
+                                      separatorBuilder: (_, _) =>
                                           const SizedBox(height: 14),
                                       itemBuilder: (context, index) {
                                         return _buildDriverCard(
@@ -653,7 +653,7 @@ Widget _buildMapSection(AvailableDriversProvider provider) {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: filters.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
               itemBuilder: (context, index) {
                 final bool active = selectedFilter == index;
 

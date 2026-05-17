@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,9 +17,7 @@ class RideApiService {
       }
       return jsonDecode(response.body);
     } catch (_) {
-      return {
-        'message': response.body,
-      };
+      return {'message': response.body};
     }
   }
 
@@ -59,10 +57,7 @@ class RideApiService {
         'message': data['message'] ?? 'Ride preview failed',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
@@ -112,10 +107,7 @@ class RideApiService {
         'message': data['message'] ?? 'Ride create failed',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
@@ -151,10 +143,7 @@ class RideApiService {
         'message': data['message'] ?? 'Offer accept failed',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
@@ -190,10 +179,7 @@ class RideApiService {
         'message': data['message'] ?? 'Offer decline failed',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
@@ -219,9 +205,7 @@ class RideApiService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'counterAmount': counterAmount,
-        }),
+        body: jsonEncode({'counterAmount': counterAmount}),
       );
 
       final data = _decodeResponse(response);
@@ -233,10 +217,7 @@ class RideApiService {
         'message': data['message'] ?? 'Counter offer failed',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
@@ -269,10 +250,7 @@ class RideApiService {
         'message': data['message'] ?? 'My rides loaded',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
@@ -305,10 +283,7 @@ class RideApiService {
         'message': data['message'] ?? 'Hire requests loaded',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 
@@ -343,10 +318,43 @@ class RideApiService {
         'message': data['message'] ?? 'Ride broadcast failed',
       };
     } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getRideRequest({
+    required String rideId,
+  }) async {
+    try {
+      final token = await _getToken();
+
+      if (token == null || token.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Token not found. Please login again.',
+        };
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/rides/$rideId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final data = _decodeResponse(response);
+
       return {
-        'success': false,
-        'message': 'Error: $e',
+        'success': response.statusCode == 200 || response.statusCode == 201,
+        'statusCode': response.statusCode,
+        'data': data,
+        'message': data['message'] ?? 'Ride request loaded',
       };
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 }
+

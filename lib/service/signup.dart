@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
@@ -47,16 +47,11 @@ class ApiService {
           errorMessage = data['message'];
         }
 
-        return {
-          'success': false,
-          'message': errorMessage,
-        };
+        return {'success': false, 'message': errorMessage};
       }
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error: $e',
-      };
+      return {'success': false, 'message': 'Error: $e'};
     }
   }
 }
+

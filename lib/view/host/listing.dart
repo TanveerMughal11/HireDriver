@@ -231,7 +231,7 @@ class _HostListingsScreenState extends State<HostListingsScreen> {
                 onTap: () {},
               ),
             );
-          }).toList(),
+          }),
       ],
     );
   }

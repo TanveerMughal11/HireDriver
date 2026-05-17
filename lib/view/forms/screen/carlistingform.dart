@@ -67,11 +67,7 @@ class ListMyCarFlowScreen extends StatelessWidget {
         return _PricingStep(
           onSubmit: () async {
             final res = await provider.handlePricingSubmit();
-            await _showMessage(
-              context,
-              res,
-              'Listing submitted successfully',
-            );
+            await _showMessage(context, res, 'Listing submitted successfully');
           },
           dailyRateController: provider.dailyRateController,
           minimumRentalDaysController: provider.minimumRentalDaysController,
@@ -339,8 +335,10 @@ class _CarInfoStepState extends State<_CarInfoStep> {
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
         ),
       ),
     );
@@ -502,9 +500,7 @@ class _PricingStep extends StatelessWidget {
                 controller: dailyRateController,
                 hintText: 'Enter daily rate (PKR)',
                 keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               const SizedBox(height: 14),
               const _FieldLabel(title: 'MINIMUM RENTAL DAYS'),
@@ -513,9 +509,7 @@ class _PricingStep extends StatelessWidget {
                 hintText: 'Enter minimum rental days',
                 keyboardType: TextInputType.number,
                 maxLength: 2,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               const SizedBox(height: 18),
               const _FieldLabel(title: 'AVAILABILITY SCHEDULE'),
@@ -585,9 +579,7 @@ class _PricingStep extends StatelessWidget {
                       ? const Color(0xFF1F3A2B)
                       : const Color(0xFFAEE7C9),
                   borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: Colors.green.withOpacity(0.18),
-                  ),
+                  border: Border.all(color: Colors.green.withOpacity(0.18)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -657,10 +649,7 @@ class _SubmittedStep extends StatelessWidget {
           child: Column(
             children: [
               const Spacer(),
-              const Text(
-                '🎉',
-                style: TextStyle(fontSize: 72),
-              ),
+              const Text('🎉', style: TextStyle(fontSize: 72)),
               const SizedBox(height: 18),
               Text(
                 'Listing Submitted!',
@@ -693,25 +682,16 @@ class _SubmittedStep extends StatelessWidget {
                 ),
                 child: const Column(
                   children: [
-                    _StatusRow(
-                      title: 'Listing Received',
-                      active: true,
-                    ),
+                    _StatusRow(title: 'Listing Received', active: true),
                     Divider(),
                     _StatusRow(
                       title: 'Admin Review · In Progress',
                       active: true,
                     ),
                     Divider(),
-                    _StatusRow(
-                      title: 'Approval',
-                      active: false,
-                    ),
+                    _StatusRow(title: 'Approval', active: false),
                     Divider(),
-                    _StatusRow(
-                      title: 'Go Live',
-                      active: false,
-                    ),
+                    _StatusRow(title: 'Go Live', active: false),
                   ],
                 ),
               ),
@@ -749,9 +729,7 @@ class _TopHeader extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.card(context).withOpacity(0.7),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: AppColors.secondary.withOpacity(0.6),
-              ),
+              border: Border.all(color: AppColors.secondary.withOpacity(0.6)),
             ),
             child: Icon(
               Icons.arrow_back_ios_new_rounded,
@@ -959,9 +937,7 @@ class _SimpleField extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.card(context).withOpacity(0.7),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.secondary.withOpacity(0.65),
-        ),
+        border: Border.all(color: AppColors.secondary.withOpacity(0.65)),
       ),
       child: TextField(
         controller: controller,
@@ -1014,8 +990,9 @@ class _UploadCard extends StatelessWidget {
           color: AppColors.card(context).withOpacity(0.75),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color:
-                uploaded ? Colors.green : AppColors.secondary.withOpacity(0.65),
+            color: uploaded
+                ? Colors.green
+                : AppColors.secondary.withOpacity(0.65),
             width: uploaded ? 1.5 : 1,
           ),
         ),
@@ -1084,10 +1061,7 @@ class _StatusRow extends StatelessWidget {
   final String title;
   final bool active;
 
-  const _StatusRow({
-    required this.title,
-    required this.active,
-  });
+  const _StatusRow({required this.title, required this.active});
 
   @override
   Widget build(BuildContext context) {
@@ -1103,8 +1077,9 @@ class _StatusRow extends StatelessWidget {
           child: Text(
             title,
             style: TextStyle(
-              color:
-                  active ? AppColors.text1(context) : AppColors.text2(context),
+              color: active
+                  ? AppColors.text1(context)
+                  : AppColors.text2(context),
               fontSize: 16,
               fontWeight: active ? FontWeight.w800 : FontWeight.w500,
             ),

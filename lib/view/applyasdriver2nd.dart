@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+﻿import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hire_driver/utils/app_colors.dart';
@@ -78,8 +78,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
       phoneController.text =
           personalInfo?['phoneNumber'] ?? prefill?['phoneNumber'] ?? '';
 
-      emailController.text =
-          personalInfo?['email'] ?? prefill?['email'] ?? '';
+      emailController.text = personalInfo?['email'] ?? prefill?['email'] ?? '';
 
       final age = personalInfo?['age'];
 
@@ -235,7 +234,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
 
         final backendMessage =
             e.response?.data?['message']?.toString() ??
-                'Application already submitted';
+            'Application already submitted';
 
         _showSnack(backendMessage);
       } else {
@@ -246,9 +245,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
         );
       }
     } catch (e) {
-      _showSnack(
-        e.toString().replaceAll('Exception:', '').trim(),
-      );
+      _showSnack(e.toString().replaceAll('Exception:', '').trim());
     } finally {
       if (mounted) {
         setState(() => isSubmitting = false);
@@ -257,9 +254,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
   }
 
   void _showSnack(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -269,9 +264,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
       body: SafeArea(
         child: isLoadingStatus
             ? const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primary,
-                ),
+                child: CircularProgressIndicator(color: AppColors.primary),
               )
             : Column(
                 children: [
@@ -390,8 +383,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
 
   Widget _buildStatusScreen() {
     final application = statusData?['application'];
-    final status =
-        statusData?['applicationStatus']?.toString() ?? 'pending';
+    final status = statusData?['applicationStatus']?.toString() ?? 'pending';
 
     final personal = application?['personalInfo'];
     final profilePicture = application?['profilePicture'];
@@ -406,14 +398,11 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
           child: CircleAvatar(
             radius: 55,
             backgroundColor: AppColors.secondary.withOpacity(0.4),
-            backgroundImage:
-                profilePicture != null ? NetworkImage(profilePicture) : null,
+            backgroundImage: profilePicture != null
+                ? NetworkImage(profilePicture)
+                : null,
             child: profilePicture == null
-                ? const Icon(
-                    Icons.person,
-                    size: 42,
-                    color: AppColors.primary,
-                  )
+                ? const Icon(Icons.person, size: 42, color: AppColors.primary)
                 : null,
           ),
         ),
@@ -446,33 +435,18 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
 
               const SizedBox(height: 18),
 
-              _infoRow(
-                'Name',
-                personal?['fullName']?.toString() ?? '-',
-              ),
+              _infoRow('Name', personal?['fullName']?.toString() ?? '-'),
 
-              _infoRow(
-                'Age',
-                personal?['age']?.toString() ?? '-',
-              ),
+              _infoRow('Age', personal?['age']?.toString() ?? '-'),
 
-              _infoRow(
-                'Phone',
-                personal?['phoneNumber']?.toString() ?? '-',
-              ),
+              _infoRow('Phone', personal?['phoneNumber']?.toString() ?? '-'),
 
-              _infoRow(
-                'Email',
-                personal?['email']?.toString() ?? '-',
-              ),
+              _infoRow('Email', personal?['email']?.toString() ?? '-'),
 
               const SizedBox(height: 12),
 
               _statusTile('Application Submitted', true),
-              _statusTile(
-                'Waiting for Admin Review',
-                status == 'pending',
-              ),
+              _statusTile('Waiting for Admin Review', status == 'pending'),
               _statusTile('Approved', status == 'approved'),
               _statusTile('Rejected', status == 'rejected'),
             ],
@@ -518,12 +492,8 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
       child: Row(
         children: [
           Icon(
-            done
-                ? Icons.check_circle_rounded
-                : Icons.radio_button_unchecked,
-            color: done
-                ? const Color(0xFF16A34A)
-                : AppColors.textSecondary,
+            done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+            color: done ? const Color(0xFF16A34A) : AppColors.textSecondary,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -612,10 +582,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            AppColors.darkPrimary,
-            AppColors.primary,
-          ],
+          colors: [AppColors.darkPrimary, AppColors.primary],
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
         ),
@@ -623,11 +590,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
       ),
       child: const Row(
         children: [
-          Icon(
-            Icons.badge_rounded,
-            color: Colors.amber,
-            size: 34,
-          ),
+          Icon(Icons.badge_rounded, color: Colors.amber, size: 34),
           SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -680,9 +643,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
           const SizedBox(height: 4),
 
           Text(
-            profileCaptured
-                ? 'captured ✓'
-                : 'Tap to add photo',
+            profileCaptured ? 'captured ✓' : 'Tap to add photo',
             style: TextStyle(
               color: AppColors.textSecondary.withOpacity(0.8),
               fontSize: 12,
@@ -738,30 +699,30 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
             ),
           ),
           child: TextField(
-  controller: controller,
-  keyboardType: keyboardType,
-  inputFormatters: inputFormatters,
-  maxLength: maxLength,
-  style: const TextStyle(
-    color: AppColors.textPrimary,
-    fontSize: 15,
-    fontWeight: FontWeight.w600,
-  ),
-  cursorColor: AppColors.primary,
-  decoration: InputDecoration(
-    counterText: '',
-    hintText: hint,
-    hintStyle: TextStyle(
-      color: AppColors.textSecondary.withOpacity(0.55),
-      fontWeight: FontWeight.w500,
-    ),
-    border: InputBorder.none,
-    contentPadding: const EdgeInsets.symmetric(
-      horizontal: 16,
-      vertical: 18,
-    ),
-  ),
-),
+            controller: controller,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
+            maxLength: maxLength,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+            cursorColor: AppColors.primary,
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: hint,
+              hintStyle: TextStyle(
+                color: AppColors.textSecondary.withOpacity(0.55),
+                fontWeight: FontWeight.w500,
+              ),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 18,
+              ),
+            ),
+          ),
         ),
 
         if (errorText != null) ...[
@@ -805,18 +766,14 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
               height: 52,
               width: 52,
               decoration: BoxDecoration(
-                color: uploaded
-                    ? const Color(0xFFDCFCE7)
-                    : AppColors.light,
+                color: uploaded ? const Color(0xFFDCFCE7) : AppColors.light,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
                 uploaded
                     ? Icons.check_circle_rounded
                     : Icons.photo_library_rounded,
-                color: uploaded
-                    ? const Color(0xFF16A34A)
-                    : AppColors.primary,
+                color: uploaded ? const Color(0xFF16A34A) : AppColors.primary,
               ),
             ),
 
@@ -834,9 +791,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
             ),
 
             Text(
-              uploaded
-                  ? 'Added ✓'
-                  : 'Upload →',
+              uploaded ? 'Added ✓' : 'Upload →',
               style: TextStyle(
                 color: uploaded
                     ? const Color(0xFF16A34A)
@@ -867,9 +822,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
                 borderRadius: BorderRadius.circular(18),
               ),
             ),
-            onPressed: isSubmitting
-                ? null
-                : _submitDriverVerification,
+            onPressed: isSubmitting ? null : _submitDriverVerification,
             child: isSubmitting
                 ? const SizedBox(
                     height: 22,
@@ -895,8 +848,7 @@ class _ApplyAsDriverState extends State<ApplyAsDriver> {
 }
 
 class DriverVerificationApiService {
-  static const String baseUrl =
-      'https://hiredrive-fal0.onrender.com';
+  static const String baseUrl = 'https://hiredrive-fal0.onrender.com';
 
   static Future<String> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -904,16 +856,13 @@ class DriverVerificationApiService {
     final token = prefs.getString('token');
 
     if (token == null || token.isEmpty) {
-      throw Exception(
-        'No auth token found. Please login again.',
-      );
+      throw Exception('No auth token found. Please login again.');
     }
 
     return token;
   }
 
-  static Future<Map<String, dynamic>>
-      getMyDriverVerification() async {
+  static Future<Map<String, dynamic>> getMyDriverVerification() async {
     final token = await _getToken();
 
     final dio = Dio();
@@ -931,8 +880,7 @@ class DriverVerificationApiService {
     return Map<String, dynamic>.from(response.data);
   }
 
-  static Future<Map<String, dynamic>>
-      submitDriverVerification({
+  static Future<Map<String, dynamic>> submitDriverVerification({
     required String fullName,
     required String age,
     required String phoneNumber,
@@ -952,16 +900,11 @@ class DriverVerificationApiService {
       'age': age,
       'phoneNumber': phoneNumber,
       'email': email,
-      'profilePicture':
-          await MultipartFile.fromFile(profilePicture.path),
-      'cnicFront':
-          await MultipartFile.fromFile(cnicFront.path),
-      'cnicBack':
-          await MultipartFile.fromFile(cnicBack.path),
-      'licenseFront':
-          await MultipartFile.fromFile(licenseFront.path),
-      'licenseBack':
-          await MultipartFile.fromFile(licenseBack.path),
+      'profilePicture': await MultipartFile.fromFile(profilePicture.path),
+      'cnicFront': await MultipartFile.fromFile(cnicFront.path),
+      'cnicBack': await MultipartFile.fromFile(cnicBack.path),
+      'licenseFront': await MultipartFile.fromFile(licenseFront.path),
+      'licenseBack': await MultipartFile.fromFile(licenseBack.path),
     });
 
     final response = await dio.post(
@@ -978,3 +921,4 @@ class DriverVerificationApiService {
     return Map<String, dynamic>.from(response.data);
   }
 }
+

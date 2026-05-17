@@ -1,10 +1,9 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class DriverRequestsApi {
-  static const String baseUrl =
-      'https://hiredrive-fal0.onrender.com';
+  static const String baseUrl = 'https://hiredrive-fal0.onrender.com';
 
   static Future<String> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -36,9 +35,7 @@ class DriverRequestsApi {
     final token = await _getToken();
 
     final response = await http.get(
-      Uri.parse(
-        '$baseUrl/api/driver-requests/incoming-requests',
-      ),
+      Uri.parse('$baseUrl/api/driver-requests/incoming-requests'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -48,25 +45,19 @@ class DriverRequestsApi {
     return jsonDecode(response.body);
   }
 
-  static Future<Map<String, dynamic>> updateAvailability(
-    bool isOnline,
-  ) async {
+  static Future<Map<String, dynamic>> updateAvailability(bool isOnline) async {
     final token = await _getToken();
 
     final response = await http.patch(
-      Uri.parse(
-        '$baseUrl/api/driver-requests/availability',
-      ),
+      Uri.parse('$baseUrl/api/driver-requests/availability'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
       },
-      body: jsonEncode({
-        "isOnline": isOnline,
-        "liveLocationActive": isOnline,
-      }),
+      body: jsonEncode({"isOnline": isOnline, "liveLocationActive": isOnline}),
     );
 
     return jsonDecode(response.body);
   }
 }
+

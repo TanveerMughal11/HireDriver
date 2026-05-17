@@ -8,6 +8,7 @@ import 'package:hire_driver/view/book%20a%20ride/screens/drivertravling.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+
 class DriverOffersScreen extends StatefulWidget {
   final String rideId;
   final int offeredFare;
@@ -23,6 +24,8 @@ class DriverOffersScreen extends StatefulWidget {
 }
 
 class _DriverOffersScreenState extends State<DriverOffersScreen> {
+  bool _handledRiderAcceptance = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,26 +35,40 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
 
       final provider = context.read<DriverOffersProvider>();
       provider.startCountdown();
+      provider.startRideStatusPolling(rideId: widget.rideId);
       _broadcastRide();
     });
+  }
+
+  @override
+  void dispose() {
+    context.read<DriverOffersProvider>().stopRideStatusPolling();
+    super.dispose();
   }
 
   Future<void> _broadcastRide() async {
     final provider = context.read<DriverOffersProvider>();
 
-    final result = await provider.broadcastRide(
-      rideId: widget.rideId,
-    );
+    final result = await provider.broadcastRide(rideId: widget.rideId);
 
     if (!mounted) return;
 
     if (result['success'] != true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? 'Ride broadcast failed'),
-        ),
+        SnackBar(content: Text(result['message'] ?? 'Ride broadcast failed')),
       );
     }
+  }
+
+  Future<void> _refreshRideStatusManually() async {
+    final provider = context.read<DriverOffersProvider>();
+    await provider.refreshRideStatus(rideId: widget.rideId);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Ride status refreshed')));
   }
 
   String _offerId(Map<String, dynamic> item) {
@@ -81,7 +98,7 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const DriverComingScreen(),
+          builder: (_) => DriverComingScreen(rideId: widget.rideId),
         ),
       );
     }
@@ -120,9 +137,7 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              hintText: 'Enter counter amount',
-            ),
+            decoration: const InputDecoration(hintText: 'Enter counter amount'),
           ),
           actions: [
             TextButton(
@@ -191,9 +206,9 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _driverName(Map<String, dynamic> item) {
@@ -261,6 +276,24 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<DriverOffersProvider>();
 
+    if (provider.riderAccepted && !_handledRiderAcceptance) {
+      _handledRiderAcceptance = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showMessage(
+          provider.riderAcceptedMessage.isNotEmpty
+              ? provider.riderAcceptedMessage
+              : 'Rider accepted your ride and is coming.',
+        );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DriverComingScreen(rideId: widget.rideId),
+          ),
+        );
+      });
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bg(context),
       body: SafeArea(
@@ -282,53 +315,51 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
                                 ),
                               )
                             : provider.errorMessage.isNotEmpty
-                                ? _buildErrorState()
-                                : provider.offers.isEmpty
-                                    ? _buildEmptyState()
-                                    : ListView.separated(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          16,
-                                          12,
-                                          16,
-                                          16,
-                                        ),
-                                        itemCount: provider.offers.length,
-                                        separatorBuilder: (_, __) =>
-                                            const SizedBox(height: 14),
-                                        itemBuilder: (context, index) {
-                                          final item = provider.offers[index];
-                                          final disabled =
-                                              _isOfferDisabled(item);
+                            ? _buildErrorState()
+                            : provider.offers.isEmpty
+                            ? _buildEmptyState()
+                            : ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  16,
+                                ),
+                                itemCount: provider.offers.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 14),
+                                itemBuilder: (context, index) {
+                                  final item = provider.offers[index];
+                                  final disabled = _isOfferDisabled(item);
 
-                                          return DriverOfferCard(
-                                            name: _driverName(item),
-                                            carInfo: _carInfo(item),
-                                            price: _amount(item),
-                                            eta: _eta(item),
-                                            rating: _rating(item),
-                                            avatarLetter: _avatarLetter(item),
-                                            showCounterOffer:
-                                                _isCounterOffer(item),
-                                            status: item['status']?.toString(),
-                                            disabled: disabled,
-                                            onAccept: () {
-                                              if (!disabled) {
-                                                _acceptOffer(item);
-                                              }
-                                            },
-                                            onCounter: () {
-                                              if (!disabled) {
-                                                _showCounterDialog(item);
-                                              }
-                                            },
-                                            onDecline: () {
-                                              if (!disabled) {
-                                                _declineOffer(item);
-                                              }
-                                            },
-                                          );
-                                        },
-                                      ),
+                                  return DriverOfferCard(
+                                    name: _driverName(item),
+                                    carInfo: _carInfo(item),
+                                    price: _amount(item),
+                                    eta: _eta(item),
+                                    rating: _rating(item),
+                                    avatarLetter: _avatarLetter(item),
+                                    showCounterOffer: _isCounterOffer(item),
+                                    status: item['status']?.toString(),
+                                    disabled: disabled,
+                                    onAccept: () {
+                                      if (!disabled) {
+                                        _acceptOffer(item);
+                                      }
+                                    },
+                                    onCounter: () {
+                                      if (!disabled) {
+                                        _showCounterDialog(item);
+                                      }
+                                    },
+                                    onDecline: () {
+                                      if (!disabled) {
+                                        _declineOffer(item);
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
                       ),
                       _buildBottomButton(),
                     ],
@@ -340,9 +371,7 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
               Container(
                 color: Colors.black.withOpacity(0.15),
                 child: const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.primary,
-                  ),
+                  child: CircularProgressIndicator(color: AppColors.primary),
                 ),
               ),
           ],
@@ -454,157 +483,220 @@ class _DriverOffersScreenState extends State<DriverOffersScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          Container(
+            height: 40,
+            width: 40,
+            decoration: BoxDecoration(
+              color: AppColors.card(context),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.secondary.withOpacity(0.45)),
+            ),
+            child: IconButton(
+              onPressed: _refreshRideStatusManually,
+              tooltip: 'Refresh status',
+              icon: Icon(
+                Icons.refresh_rounded,
+                color: AppColors.text1(context),
+                size: 20,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-Widget _buildMapSection() {
-  final provider = context.watch<DriverOffersProvider>();
+  Widget _buildMapSection() {
+    final provider = context.watch<DriverOffersProvider>();
 
-  final hasPickup =
-      provider.pickupLat != null && provider.pickupLng != null;
+    final hasPickup = provider.pickupLat != null && provider.pickupLng != null;
 
-  final pickupPoint = hasPickup
-      ? LatLng(provider.pickupLat!, provider.pickupLng!)
-      : const LatLng(31.5204, 74.3587);
+    final pickupPoint = hasPickup
+        ? LatLng(provider.pickupLat!, provider.pickupLng!)
+        : const LatLng(31.5204, 74.3587);
 
-  return Container(
-    height: 220,
-    margin: const EdgeInsets.symmetric(horizontal: 16),
-    clipBehavior: Clip.antiAlias,
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(24),
-      color: AppColors.card(context),
-    ),
-    child: Stack(
-      children: [
-        Positioned.fill(
-          child: FlutterMap(
-            options: MapOptions(
-              initialCenter: pickupPoint,
-              initialZoom: 15.5,
-              interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.none,
+    return Container(
+      height: 220,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: AppColors.card(context),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: pickupPoint,
+                initialZoom: 15.5,
+                interactionOptions: const InteractionOptions(
+                  flags: InteractiveFlag.none,
+                ),
               ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.example.hire_driver',
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: pickupPoint,
+                      width: 80,
+                      height: 80,
+                      child: const AnimatedDriverPin(
+                        color: Color(0xFFF97316),
+                        icon: Icons.person_pin_circle_rounded,
+                        delay: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            children: [
-              TileLayer(
-                urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.hire_driver',
+          ),
+
+          Positioned(
+            left: 18,
+            right: 18,
+            bottom: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.card(context),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(.08),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: pickupPoint,
-                    width: 80,
-                    height: 80,
-                    child: const AnimatedDriverPin(
-                      color: Color(0xFFF97316),
-                      icon: Icons.person_pin_circle_rounded,
-                      delay: 0,
+              child: Row(
+                children: [
+                  Container(
+                    height: 10,
+                    width: 10,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF59E0B),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      provider.pickupAddress,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.text1(context),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      provider.timerText,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.darkPrimary,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-
-        Positioned(
-          left: 18,
-          right: 18,
-          bottom: 16,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.card(context),
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(.08),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  height: 10,
-                  width: 10,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF59E0B),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    provider.pickupAddress,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.text1(context),
-                    ),
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    provider.timerText,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.darkPrimary,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildStatusBar() {
     final provider = context.watch<DriverOffersProvider>();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Row(
+      child: Column(
         children: [
-          Text(
-            '${provider.respondedDrivers} drivers responded',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppColors.text1(context),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      provider.riderAccepted
+                          ? 'Rider accepted your ride'
+                          : '${provider.respondedDrivers} drivers responded',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.text1(context),
+                      ),
+                    ),
+                    if (provider.passengerDecisionType == 'declined' &&
+                        provider.passengerDecisionMessage.isNotEmpty)
+                      Text(
+                        provider.passengerDecisionMessage,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text2(context),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD1FAE5),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  provider.live ? 'Live' : 'Waiting',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF059669),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: const Color(0xFFD1FAE5),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              provider.live ? 'Live' : 'Waiting',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF059669),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _refreshRideStatusManually,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Refresh Status'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary.withOpacity(0.6)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
@@ -621,9 +713,9 @@ Widget _buildMapSection() {
         height: 54,
         child: OutlinedButton(
           onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Offer cancelled')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Offer cancelled')));
           },
           style: OutlinedButton.styleFrom(
             side: BorderSide(color: AppColors.primary.withOpacity(.45)),
@@ -700,10 +792,7 @@ class DriverOfferCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _AvatarWithRating(
-                  letter: avatarLetter,
-                  rating: rating,
-                ),
+                _AvatarWithRating(letter: avatarLetter, rating: rating),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -753,13 +842,13 @@ class DriverOfferCard extends StatelessWidget {
                               bg: currentStatus == 'accepted'
                                   ? const Color(0xFFD1FAE5)
                                   : currentStatus == 'declined'
-                                      ? const Color(0xFFFEE2E2)
-                                      : const Color(0xFFEDE9FE),
+                                  ? const Color(0xFFFEE2E2)
+                                  : const Color(0xFFEDE9FE),
                               textColor: currentStatus == 'accepted'
                                   ? const Color(0xFF059669)
                                   : currentStatus == 'declined'
-                                      ? const Color(0xFFDC2626)
-                                      : AppColors.darkPrimary,
+                                  ? const Color(0xFFDC2626)
+                                  : AppColors.darkPrimary,
                             ),
                         ],
                       ),
@@ -824,10 +913,7 @@ class _AvatarWithRating extends StatelessWidget {
   final String letter;
   final String rating;
 
-  const _AvatarWithRating({
-    required this.letter,
-    required this.rating,
-  });
+  const _AvatarWithRating({required this.letter, required this.rating});
 
   @override
   Widget build(BuildContext context) {
@@ -839,10 +925,7 @@ class _AvatarWithRating extends StatelessWidget {
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: LinearGradient(
-              colors: [
-                AppColors.primary,
-                AppColors.darkPrimary,
-              ],
+              colors: [AppColors.primary, AppColors.darkPrimary],
             ),
           ),
           alignment: Alignment.center,
@@ -1026,9 +1109,10 @@ class _AnimatedDriverPinState extends State<AnimatedDriverPin>
       duration: const Duration(milliseconds: 1200),
     );
 
-    animation = Tween<double>(begin: 0.92, end: 1.08).animate(
-      CurvedAnimation(parent: controller, curve: Curves.easeInOut),
-    );
+    animation = Tween<double>(
+      begin: 0.92,
+      end: 1.08,
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut));
 
     delayTimer = Timer(Duration(milliseconds: widget.delay), () {
       controller.repeat(reverse: true);
@@ -1065,11 +1149,7 @@ class _AnimatedDriverPinState extends State<AnimatedDriverPin>
                     ),
                   ],
                 ),
-                child: Icon(
-                  widget.icon,
-                  color: AppColors.white,
-                  size: 17,
-                ),
+                child: Icon(widget.icon, color: AppColors.white, size: 17),
               ),
               Container(
                 width: 10,

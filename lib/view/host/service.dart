@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,75 +15,75 @@ class RentalOwnerApi {
 
     return token;
   }
+
   static Future<Map<String, dynamic>> declineRentalRequest(
-  String bookingId,
-) async {
-  final token = await _getToken();
+    String bookingId,
+  ) async {
+    final token = await _getToken();
 
-  final response = await http.post(
-    Uri.parse(
-      '$baseUrl/api/rentals/owner/requests/$bookingId/decline',
-    ),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-  );
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/rentals/owner/requests/$bookingId/decline'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-  final data = _decodeResponse(response);
+    final data = _decodeResponse(response);
 
-  if (response.statusCode == 200 && data['success'] == true) {
-    return data;
+    if (response.statusCode == 200 && data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(data['message'] ?? 'Failed to decline rental request');
   }
 
-  throw Exception(
-    data['message'] ?? 'Failed to decline rental request',
-  );
-}
-static Future<Map<String, dynamic>> acceptRentalRequest(
-  String bookingId,
-) async {
-  final token = await _getToken();
+  static Future<Map<String, dynamic>> acceptRentalRequest(
+    String bookingId,
+  ) async {
+    final token = await _getToken();
 
-  final response = await http.post(
-    Uri.parse(
-      '$baseUrl/api/rentals/owner/requests/$bookingId/accept',
-    ),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-  );
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/rentals/owner/requests/$bookingId/accept'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-  final data = _decodeResponse(response);
+    final data = _decodeResponse(response);
 
-  if (response.statusCode == 200 && data['success'] == true) {
-    return data;
+    if (response.statusCode == 200 && data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(data['message'] ?? 'Failed to accept rental request');
   }
 
-  throw Exception(
-    data['message'] ?? 'Failed to accept rental request',
-  );
-}
-static Future<Map<String, dynamic>> getOwnerRequestDetails(String bookingId) async {
-  final token = await _getToken();
+  static Future<Map<String, dynamic>> getOwnerRequestDetails(
+    String bookingId,
+  ) async {
+    final token = await _getToken();
 
-  final response = await http.get(
-    Uri.parse('$baseUrl/api/rentals/owner/requests/$bookingId'),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-  );
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/rentals/owner/requests/$bookingId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
 
-  final data = _decodeResponse(response);
+    final data = _decodeResponse(response);
 
-  if (response.statusCode == 200 && data['success'] == true) {
-    return data;
+    if (response.statusCode == 200 && data['success'] == true) {
+      return data;
+    }
+
+    throw Exception(
+      data['message'] ?? 'Failed to fetch rental request details',
+    );
   }
 
-  throw Exception(data['message'] ?? 'Failed to fetch rental request details');
-}
   static Map<String, dynamic> _decodeResponse(http.Response response) {
     try {
       return jsonDecode(response.body) as Map<String, dynamic>;
@@ -132,3 +132,4 @@ static Future<Map<String, dynamic>> getOwnerRequestDetails(String bookingId) asy
     throw Exception(data['message'] ?? 'Failed to fetch rental requests');
   }
 }
+
